@@ -9,7 +9,7 @@ import numpy as np
 ee.Initialize()
 
 STEEP_THRESHOLD = 70
-HEIGHT_THRESHOLD = 80
+HEIGHT_THRESHOLD = 70
 
 # Importing datasets
 dem = ee.Image('USGS/NED')
@@ -62,14 +62,16 @@ def get_cliffs(rectangle):
   # Getting data for each polygonal cliff geometry.
   features = features.map(lambda f: set_landsat_data(f))
 
-  # Now reducing cliff polygon to its centroid and getting more data.
-  features = features.map(lambda f: f.centroid(10 ** -2))
+  # Setting the cliff geometric centroid as its position
   features = features.map(lambda f: f.set(
-    'latitude', f.geometry().coordinates().get(1),
-    'longitude', f.geometry().coordinates().get(0)))
+    'latitude', f.geometry().centroid(10 ** -2).coordinates().get(1),
+    'longitude', f.geometry().centroid(10 ** -2).coordinates().get(0)))
   # Need lithology to be unmasked to avoid critical errors.
   features = features.map(lambda f: \
-    f.set('centroid_lith', lith.reduceRegion('first', f.geometry()).get('b1')))
+    f.set('centroid_lith', lith.reduceRegion(
+      reducer='first',
+      geometry=ee.Geometry.Point(f.get('longitude'), f.get('latitude'))
+    ).get('b1')))
   features = features.filter(ee.Filter.notNull(['centroid_lith']))
   features = features.map(lambda f: set_lithology(f))
   features = features.map(lambda f: set_population(f))
@@ -86,7 +88,7 @@ def get_cliffs(rectangle):
 
 def set_population(feature):
   """Add population as a feature property."""
-  geo = feature.geometry()
+  geo = ee.Geometry.Point(feature.get('longitude'), feature.get('latitude'))
   disk = geo.buffer(100000)
   count = pop.reduceRegion(reducer='sum', geometry=disk)
   count = ee.Number(count.get('population_count')).toInt()
@@ -99,7 +101,7 @@ def set_population(feature):
 
 def set_road_within_distance(feature, distance):
   """Determine if there is a road within specified distance of feature."""
-  geo = feature.geometry()
+  geo = ee.Geometry.Point(feature.get('longitude'), feature.get('latitude'))
   disk = geo.buffer(distance)
   close_roads = roads.filterBounds(disk)
   is_close_road = close_roads.size().gt(0)
@@ -108,7 +110,7 @@ def set_road_within_distance(feature, distance):
 
 def set_mp_score(feature):
   """Use mountain project data to give score based on routes and views."""
-  geo = feature.geometry()
+  geo = ee.Geometry.Point(feature.get('longitude'), feature.get('latitude'))
   disk = geo.buffer(1500)  # looking at mp data within 1.5km of feature
   close_mp = mp.filterBounds(disk)
   num_rock_routes = close_mp.aggregate_sum('num_rock_routes')
@@ -119,7 +121,7 @@ def set_mp_score(feature):
 
 def set_lithology(feature):
   """Add lithology data for 1km disk around cliff as a feature property."""
-  geo = feature.geometry()
+  geo = ee.Geometry.Point(feature.get('longitude'), feature.get('latitude'))
   disk = geo.buffer(1000)
   hist = lith.reduceRegion(reducer='frequencyHistogram', geometry=disk).get('b1')
   hist = ee.Dictionary(hist)
@@ -174,7 +176,7 @@ task = ee.batch.Export.table.toDrive(
   description='getting big wall data: ' + description,
   fileFormat='CSV',
   folder='earth-engine',
-  fileNamePrefix='big_wall_data_' + description,
+  fileNamePrefix='cliff_formations_' + description,
 )
 
 
