@@ -67,20 +67,20 @@ def get_cliffs(rectangle):
     'latitude', f.geometry().centroid(10 ** -2).coordinates().get(1),
     'longitude', f.geometry().centroid(10 ** -2).coordinates().get(0)))
   # Need lithology to be unmasked to avoid critical errors.
-  features = features.map(lambda f: \
-    f.set('centroid_lith', lith.reduceRegion(
-      reducer='first',
-      geometry=ee.Geometry.Point(f.get('longitude'), f.get('latitude'))
-    ).get('b1')))
-  features = features.filter(ee.Filter.notNull(['centroid_lith']))
-  features = features.map(lambda f: set_lithology(f))
-  features = features.map(lambda f: set_population(f))
-  features = features.map(lambda f: set_road_within_distance(f, 1000))
-  features = features.map(lambda f: set_road_within_distance(f, 2000))
-  features = features.map(lambda f: set_road_within_distance(f, 3000))
-  features = features.map(lambda f: set_road_within_distance(f, 4000))
-  features = features.map(lambda f: set_road_within_distance(f, 5000))
-  features = features.map(lambda f: set_mp_score(f))
+  # features = features.map(lambda f: \
+  #   f.set('centroid_lith', lith.reduceRegion(
+  #     reducer='first',
+  #     geometry=ee.Geometry.Point(f.get('longitude'), f.get('latitude'))
+  #   ).get('b1')))
+  # features = features.filter(ee.Filter.notNull(['centroid_lith']))
+  # features = features.map(lambda f: set_lithology(f))
+  # features = features.map(lambda f: set_population(f))
+  # features = features.map(lambda f: set_road_within_distance(f, 1000))
+  # features = features.map(lambda f: set_road_within_distance(f, 2000))
+  # features = features.map(lambda f: set_road_within_distance(f, 3000))
+  # features = features.map(lambda f: set_road_within_distance(f, 4000))
+  # features = features.map(lambda f: set_road_within_distance(f, 5000))
+  # features = features.map(lambda f: set_mp_score(f))
 
   # Here features is a FeatureCollection object. Casting it to a list.
   return features.toList(1000)  # maximum number of features per rectangle
@@ -153,6 +153,9 @@ def set_landsat_data(feature):
 x0, x1, dx = -125, -102, 0.25
 y0, y1, dy = 31, 49, 0.25
 
+x1=-120
+y0=47
+
 rectangles = [ee.Geometry.Rectangle(x, y, x + dx, y + dy)
               for x in np.arange(x0, x1, dx) for y in np.arange(y0, y1, dx)]
 
@@ -170,13 +173,12 @@ results = results.flatten()
 
 # Exporting results to google drive.
 results = ee.FeatureCollection(results)  #casting from ee.List
-description = 'steepness_{}_height_{}m'.format(STEEP_THRESHOLD, HEIGHT_THRESHOLD)
 task = ee.batch.Export.table.toDrive(
   collection=results,
-  description='getting big wall data: ' + description,
+  description='getting big wall data',
   fileFormat='CSV',
   folder='earth-engine',
-  fileNamePrefix='cliff_formations_' + description,
+  fileNamePrefix='ee_data',
 )
 
 
