@@ -41,7 +41,7 @@ dem_masked = dem.updateMask(steep)
 steep = steep.addBands(dem_masked.toInt())
 
 # Calculating heights of each connected region of steep terrain.
-cliffs = steep.reduceConnectedComponents(reducer='minMax', maxSize=256)
+cliffs = steep.reduceConnectedComponents(reducer='minMax')
 cliffs = cliffs.select('elevation_max').subtract(cliffs.select('elevation_min'))
 cliffs = cliffs.updateMask(cliffs.gt(HEIGHT_THRESHOLD))
 
@@ -62,33 +62,35 @@ def get_cliffs(rectangle):
   # Getting data for each polygonal cliff geometry.
   features = features.map(lambda f: set_landsat_data(f))
 
-  # Setting the cliff geometric centroid as its position
+  # Setting the cliff's centroid
+  features = features.map(lambda f: f.set('centroid', f.geometry().centroid(10 ** -2)))
   features = features.map(lambda f: f.set(
-    'latitude', f.geometry().centroid(10 ** -2).coordinates().get(1),
-    'longitude', f.geometry().centroid(10 ** -2).coordinates().get(0)))
+    'latitude', ee.Geometry(f.get('centroid')).coordinates().get(1),
+    'longitude', ee.Geometry(f.get('centroid')).coordinates().get(0)))
   # Need lithology to be unmasked to avoid critical errors.
-  # features = features.map(lambda f: \
-  #   f.set('centroid_lith', lith.reduceRegion(
-  #     reducer='first',
-  #     geometry=ee.Geometry.Point(f.get('longitude'), f.get('latitude'))
-  #   ).get('b1')))
-  # features = features.filter(ee.Filter.notNull(['centroid_lith']))
-  # features = features.map(lambda f: set_lithology(f))
-  # features = features.map(lambda f: set_population(f))
-  # features = features.map(lambda f: set_road_within_distance(f, 1000))
-  # features = features.map(lambda f: set_road_within_distance(f, 2000))
-  # features = features.map(lambda f: set_road_within_distance(f, 3000))
-  # features = features.map(lambda f: set_road_within_distance(f, 4000))
-  # features = features.map(lambda f: set_road_within_distance(f, 5000))
-  # features = features.map(lambda f: set_mp_score(f))
+  features = features.map(lambda f: f.set(
+    'centroid_lith',
+    lith.reduceRegion(
+      reducer='first',
+      geometry=f.get('centroid')
+    ).get('b1')))
+  features = features.filter(ee.Filter.notNull(['centroid_lith']))
+  features = features.map(lambda f: set_lithology(f))
+  features = features.map(lambda f: set_population(f))
+  features = features.map(lambda f: set_road_within_distance(f, 1000))
+  features = features.map(lambda f: set_road_within_distance(f, 2000))
+  features = features.map(lambda f: set_road_within_distance(f, 3000))
+  features = features.map(lambda f: set_road_within_distance(f, 4000))
+  features = features.map(lambda f: set_road_within_distance(f, 5000))
+  features = features.map(lambda f: set_mp_score(f))
 
   # Here features is a FeatureCollection object. Casting it to a list.
-  return features.toList(1000)  # maximum number of features per rectangle
+  return features.toList(2000)  # maximum number of features per rectangle
 
 
 def set_population(feature):
   """Add population as a feature property."""
-  geo = ee.Geometry.Point(feature.get('longitude'), feature.get('latitude'))
+  geo = ee.Geometry(feature.get('centroid'))
   disk = geo.buffer(100000)
   count = pop.reduceRegion(reducer='sum', geometry=disk)
   count = ee.Number(count.get('population_count')).toInt()
@@ -101,7 +103,7 @@ def set_population(feature):
 
 def set_road_within_distance(feature, distance):
   """Determine if there is a road within specified distance of feature."""
-  geo = ee.Geometry.Point(feature.get('longitude'), feature.get('latitude'))
+  geo = ee.Geometry(feature.get('centroid'))
   disk = geo.buffer(distance)
   close_roads = roads.filterBounds(disk)
   is_close_road = close_roads.size().gt(0)
@@ -110,7 +112,7 @@ def set_road_within_distance(feature, distance):
 
 def set_mp_score(feature):
   """Use mountain project data to give score based on routes and views."""
-  geo = ee.Geometry.Point(feature.get('longitude'), feature.get('latitude'))
+  geo = ee.Geometry(feature.get('centroid'))
   disk = geo.buffer(1500)  # looking at mp data within 1.5km of feature
   close_mp = mp.filterBounds(disk)
   num_rock_routes = close_mp.aggregate_sum('num_rock_routes')
@@ -121,7 +123,7 @@ def set_mp_score(feature):
 
 def set_lithology(feature):
   """Add lithology data for 1km disk around cliff as a feature property."""
-  geo = ee.Geometry.Point(feature.get('longitude'), feature.get('latitude'))
+  geo = ee.Geometry(feature.get('centroid'))
   disk = geo.buffer(1000)
   hist = lith.reduceRegion(reducer='frequencyHistogram', geometry=disk).get('b1')
   hist = ee.Dictionary(hist)
@@ -153,9 +155,6 @@ def set_landsat_data(feature):
 x0, x1, dx = -125, -102, 0.25
 y0, y1, dy = 31, 49, 0.25
 
-x1=-120
-y0=47
-
 rectangles = [ee.Geometry.Rectangle(x, y, x + dx, y + dy)
               for x in np.arange(x0, x1, dx) for y in np.arange(y0, y1, dx)]
 
@@ -183,5 +182,7 @@ task = ee.batch.Export.table.toDrive(
 
 
 task.start()
-print('Current status:', task.status())
+t = task.status()
+for k, v in t.items():
+  print('{}: {}'.format(k, v))
 # Use ee.batch.Task.list() to see current status of exports.
