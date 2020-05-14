@@ -7,8 +7,8 @@ import random
 from collections import defaultdict
 
 # Loading data scraped.
-with open('mountain-project-scraper/clean-data.json') as file:
-  data = json.load(file)
+with open('../mountain-project-scraper/clean-data.json') as file:
+  data = json.load(file)  # scraped May 2020
 
 # data is a list; converting it to a dict to match format of children
 root = {'name': 'All Climbing', 'children': data}
@@ -98,4 +98,4 @@ for key in keys:
 
 # Exporting data.
 df = pd.DataFrame(pre_df)
-df.to_csv('data/mp_data.csv', header=True, index=False)
+df.to_csv('../data/mp_data.csv', header=True, index=False)
