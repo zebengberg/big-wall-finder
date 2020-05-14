@@ -63,8 +63,8 @@ def run_xgb():
   X_train, y_train, X_test, y_test, X_pred = build_x_y()
   # dmatrix = xgb.DMatrix(data=X_train, label=y_train)
   # can also use XGBClassifier
-  model = xgb.XGBRegressor(objective ='reg:squarederror', colsample_bytree = 0.3, learning_rate = 0.1,
-              max_depth = 5, alpha = 10, n_estimators = 10)
+  model = xgb.XGBRegressor(objective ='reg:squarederror', colsample_bytree = 0.3,
+    learning_rate = 0.1, max_depth = 5, alpha = 10, n_estimators = 10)
   model.fit(X_train, y_train)
   
   # Results
@@ -95,10 +95,16 @@ def run_random_forest():
 def run_neural_network():
   pass
 
-def write_results():
-  pass
-  # eventually call something like:
-  # results.to_csv('../data/results.csv', header=True, index=False)
+def write_results(y):
+  df = pd.read_csv('../data/ee_data.csv')
+  # Dropping columns we don't care about.
+  results = df[['height', 'latitude', 'longitude', 'mp_score', 'pixel_count', '.geo']]
+  predictions = pd.Series(data=y, index=inaccessible.index, name='prediction')
+  results = results.join(predictions)
+  results.drop(columns=['latitude', 'longitude']).to_csv('../data/results.csv',
+    header=True, index=False)
+  results.drop(columns=['.geo', 'pixel_count']).to_csv('../data/simplified_results.csv',
+    header=True, index=False)
 
 
 def print_top_results(X, y, model):
@@ -109,13 +115,15 @@ def print_top_results(X, y, model):
   X = X[['latitude', 'longitude', 'height', 'mp_score', 'score']]
 
   print('Top 20 results from {} prediction.\n'.format(model))
-  print(X[:40].to_string(index=False))
+  print(X[:20].to_string(index=False))
   print('\n' + '_' * 80)
 
 
 
 if __name__ == '__main__':
+  y_pred = run_xgb()
+  write_results(y_pred)
   # run_linear()
   # run_logistic()
   # run_xgb()
-  run_knn()
+  # run_knn()

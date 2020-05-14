@@ -11,7 +11,7 @@ def prepare_big_wall_data():
   df = pd.read_csv('../data/ee_data.csv')
 
   # Dropping columns we don't care about.
-  df = df.drop(columns=['system:index', 'centroid_lith', '.geo'])
+  df.drop(columns=['system:index', 'centroid_lith', '.geo'], inplace=True)
 
   # There are "holes" in the elevation dataset found at 'USGS/NED'. These holes
   # give the appearance of deep wells within the elevation data. They form regions
@@ -40,9 +40,9 @@ def prepare_big_wall_data():
   # roads nearby.
   has_access = (df.road_within_1000m == 1) & (df.population_within_100km > 10000)
 
-  df = df.drop(columns=['road_within_1000m', 'road_within_2000m',
+  df.drop(columns=['road_within_1000m', 'road_within_2000m',
   'road_within_3000m', 'road_within_4000m', 'road_within_5000m',
-  'population_within_30km', 'population_within_100km'])
+  'population_within_30km', 'population_within_100km'], inplace=True)
 
   accessible = df[has_access]
   inaccessible = df[~has_access]
