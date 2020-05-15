@@ -1,34 +1,31 @@
+# To render as image, run: $ dot -Tpng pipeline.dot -o pipeline.png
+
 digraph G {
   node [fontname = "Menlo"; style = filled]
 
-  mps [label = "mountain-project-scraper"; shape = rpromoter; fillcolor = green]
-  mpsd [label = "clean-data.json"; shape = note; fillcolor = green]
-  mpp [label = "parse_mp_data.py"; shape = rpromoter; fillcolor = green]
-  mppd [label = "mp_data.csv"; shape = note; fillcolor = "green:yellow"]
+  mp_scrape [label = "mountain-project-scraper"; shape = rpromoter; fillcolor = green]
+  json [label = "clean-data.json"; shape = note; fillcolor = green]
+  parse_mp [label = "parse_mp_data.py"; shape = rpromoter; fillcolor = green]
+  mp_data [label = "mp_data.csv"; shape = note; fillcolor = "green:yellow"]
+  explore_unmerged [label = "explore_unmerged_data.js"; shape = rpromoter; fillcolor = yellow]
 
-  eeg [label = "gather_ee_data.py"; shape = rpromoter; fillcolor = yellow]
-  eegd [label = "ee_data.csv"; shape = note; fillcolor = yellow]
-  eed [label = "merge_data.py"; shape = rpromoter; fillcolor = "yellow"]
-  eedd [label = "merged_data.csv"; shape = note; fillcolor = "yellow:green"]
-  ed [label = "explore_data.ipynb"; shape = rpromoter; fillcolor = green]
+  gather_ee [label = "gather_ee_data.py"; shape = rpromoter; fillcolor = yellow]
+  ee_data [label = "ee_data.csv"; shape = note; fillcolor = yellow]
+  merge_data [label = "merge_data.py"; shape = rpromoter; fillcolor = "yellow"]
+  merged_data [label = "merged_data.csv"; shape = note; fillcolor = "yellow:green"]
+  explore_data [label = "explore_data.ipynb"; shape = rpromoter; fillcolor = green]
 
-  pd [label = "clean_data.py"; shape = rpromoter; fillcolor = green]
-  bwp [label = "models.py"; shape = rpromoter; fillcolor = green]
-  rd [label = "results.csv"; shape = note; fillcolor = "green:yellow"]
-  srd [label = "simplified_results.csv"; shape = note; fillcolor = "green"]
+  clean_data [label = "clean_data.py"; shape = rpromoter; fillcolor = green]
+  models [label = "models.py"; shape = rpromoter; fillcolor = green]
+  results [label = "results.csv"; shape = note; fillcolor = "green:yellow"]
+  simplified_results [label = "simplified_results.csv"; shape = note; fillcolor = "green"]
 
-  vr [label = "view_results.js"; shape = rpromoter; fillcolor = yellow]
-  eea [label = "Earth\nEngine\nApp"; shape = hexagon; fillcolor = orange]
+  view_results [label = "view_results.js"; shape = rpromoter; fillcolor = yellow]
+  app [label = "Earth\nEngine\nApp"; shape = hexagon; fillcolor = orange]
 
-
-  mps -> mpsd -> mpp -> mppd -> eed;
-  eeg -> eegd -> eed -> eedd -> ed;
-  eedd -> pd -> bwp -> srd;
-  bwp -> rd -> vr -> eea;
-
-
-  # {
-  #   rank=same;
-  #   guess; point; win;
-  # }
+  mp_scrape -> json -> parse_mp -> mp_data -> {explore_unmerged, merge_data}
+  gather_ee -> ee_data -> {explore_unmerged, merge_data}
+  merge_data -> merged_data -> {explore_data, clean_data}
+  clean_data -> models -> {results, simplified_results}
+  results -> view_results -> app
 }

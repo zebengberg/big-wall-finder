@@ -6,6 +6,3 @@ src/__pycache__
 
 # cloned repo containing scraped data as JSON
 mountain-project-scraper/
-
-# will contain javascript file from code.earthengine...
-app/
