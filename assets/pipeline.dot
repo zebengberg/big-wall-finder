@@ -1,0 +1,34 @@
+digraph G {
+  node [fontname = "Menlo"; style = filled]
+
+  mps [label = "mountain-project-scraper"; shape = rpromoter; fillcolor = green]
+  mpsd [label = "clean-data.json"; shape = note; fillcolor = green]
+  mpp [label = "parse_mp_data.py"; shape = rpromoter; fillcolor = green]
+  mppd [label = "mp_data.csv"; shape = note; fillcolor = "green:yellow"]
+
+  eeg [label = "gather_big_wall_data.py"; shape = rpromoter; fillcolor = yellow]
+  eegd [label = "ee_data.csv"; shape = note; fillcolor = yellow]
+  eed [label = "determine_training_data.py"; shape = rpromoter; fillcolor = "yellow"]
+  eedd [label = "merged_data.csv"; shape = note; fillcolor = "yellow:green"]
+  ed [label = "explore_data.ipynb"; shape = rpromoter; fillcolor = green]
+
+  pd [label = "prepare_big_wall_data.py"; shape = rpromoter; fillcolor = green]
+  bwp [label = "big_wall_prediction.py"; shape = rpromoter; fillcolor = green]
+  rd [label = "results.csv"; shape = note; fillcolor = "green:yellow"]
+  srd [label = "simplified_results.csv"; shape = note; fillcolor = "green"]
+
+  vr [label = "view_results.js"; shape = rpromoter; fillcolor = yellow]
+  eea [label = "Earth\nEngine\nApp"; shape = hexagon; fillcolor = orange]
+
+
+  mps -> mpsd -> mpp -> mppd -> eed;
+  eeg -> eegd -> eed -> eedd -> ed;
+  eedd -> pd -> bwp -> srd;
+  bwp -> rd -> vr -> eea;
+
+
+  # {
+  #   rank=same;
+  #   guess; point; win;
+  # }
+}

@@ -51,6 +51,14 @@ The results of project can be [viewed through an interactive map](). The data is
 
 The script [big_wall_prediction.py](src/big_wall_prediction.py) implements several of the standard machine learning algorithms such as k-nearest neighbors, gradient tree boosting, and random forest. Because the dataset we use for training is not particularly large (~10k data points), deep learning techniques are limited. All of the models used train quickly and can readily be modified.
 
+## Pipeline
+
+Because we are combining data from several different sources, the data pipeline is involved. Below is a simple [graph](https://www.graphviz.org/) showing scripts and files containing data. Yellow indicates that a script runs on or an asset is stored in the Google Earth Engine Cloud. Green indicates local execution or storage. Data with both colors must exist in both places.
+
+![pipeline](assets/pipeline.png)
+
+
+
 
 ## Methodology
 
