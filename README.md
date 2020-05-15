@@ -55,10 +55,8 @@ The script [big_wall_prediction.py](src/big_wall_prediction.py) implements sever
 
 Because we are combining data from several different sources, the data pipeline is involved. Below is a simple [graph](https://www.graphviz.org/) showing scripts and files containing data. Yellow indicates that a script runs on or an asset is stored in the Google Earth Engine Cloud. Green indicates local execution or storage. Data with both colors must exist in both places.
 
-![pipeline](assets/pipeline.png)
 
-
-
+<img src="assets/pipeline.png" width="500px"/>
 
 ## Methodology
 
