@@ -79,7 +79,6 @@ def get_cliffs(rectangle):
   features = features.map(lambda f: set_road_within_distance(f, 1500))
   features = features.map(lambda f: set_road_within_distance(f, 2000))
   features = features.map(lambda f: set_road_within_distance(f, 3000))
-  features = features.map(lambda f: set_road_within_distance(f, 4000))
 
 
   # Here features is a FeatureCollection object. Casting it to a list.
@@ -153,8 +152,8 @@ results = rectangles.map(get_cliffs, True)  # dropping nulls
 results = results.flatten()
 results = ee.FeatureCollection(results)  # casting from ee.List
 
-# Exporting to drive to access intermediate results with pandas
-drive_task = ee.batch.Export.table.toDrive(
+# Exporting results to drive
+task = ee.batch.Export.table.toDrive(
     collection=results,
     description='exporting big wall data to drive',
     fileFormat='CSV',
@@ -162,16 +161,8 @@ drive_task = ee.batch.Export.table.toDrive(
     fileNamePrefix='ee_data',
 )
 
-# Exporting as an ee asset in order to run the merge_data script.
-asset_task = ee.batch.Export.table.toAsset(
-    collection=results,
-    description='exporting big wall data as asset',
-    assetId='users/zebengberg/big_walls/ee_data'
-)
-
-drive_task.start()
-t = drive_task.status()
+task.start()
+t = task.status()
 for k, v in t.items():
   print('{}: {}'.format(k, v))
-asset_task.start()
-# Use ee.batch.Task.list() to see current status of exports.
+# Call ee.batch.Task.list() to see current status of exports.
