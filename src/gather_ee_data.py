@@ -152,7 +152,7 @@ results = rectangles.map(get_cliffs, True)  # dropping nulls
 results = results.flatten()
 results = ee.FeatureCollection(results)  # casting from ee.List
 
-# Exporting results to drive
+# Exporting results to drive for local download
 task = ee.batch.Export.table.toDrive(
     collection=results,
     description='exporting big wall data to drive',
@@ -161,8 +161,16 @@ task = ee.batch.Export.table.toDrive(
     fileNamePrefix='ee_data',
 )
 
+# Exporting as an ee asset in order to run the merge_data script.
+asset_task = ee.batch.Export.table.toAsset(
+    collection=results,
+    description='exporting big wall data as asset',
+    assetId='users/zebengberg/big_walls/ee_data'
+)
+
 task.start()
 t = task.status()
 for k, v in t.items():
   print('{}: {}'.format(k, v))
+asset_task.start()
 # Call ee.batch.Task.list() to see current status of exports.
