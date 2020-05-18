@@ -20,16 +20,16 @@ cliffs = cliffs.set({
 def set_closest_cliff_id(f):
   """Find the id of the closest cliff and set it as a property, or return None."""
   close_cliffs = cliffs.filterBounds(f.buffer(MP_THRESHOLD).geometry())
-  close_cliffs.set('dist', MP_THRESHOLD)
-  close_cliffs = close_cliffs.map(lambda c: c.set('dist', c.distance(f.geometry())))
+  close_cliffs.set({'dist': MP_THRESHOLD})
+  close_cliffs = close_cliffs.map(lambda c: c.set({'dist': c.distance(f.geometry())}))
 
   close_cliffs = close_cliffs.sort('dist')
   closest_cliff = close_cliffs.first()  # might be None
   return ee.Algorithms.If(  # returns None if closest_cliff None
       closest_cliff,
       f.set({
-          'index', ee.Feature(closest_cliff).id(),
-          'distance_to_mp', closest_cliff.get('dist')
+          'index': ee.Feature(closest_cliff).id(),
+          'distance_to_mp': closest_cliff.get('dist')
       })
   )
 

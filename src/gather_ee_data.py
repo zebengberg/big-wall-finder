@@ -8,8 +8,10 @@ import ee
 import numpy as np
 ee.Initialize()
 
+# Set these particular thresholds so that resulting csv stays within GitHub's
+# 100mb limit for files.
 STEEP_THRESHOLD = 70
-HEIGHT_THRESHOLD = 90
+HEIGHT_THRESHOLD = 100
 
 # Importing datasets
 dem = ee.Image('USGS/NED')
