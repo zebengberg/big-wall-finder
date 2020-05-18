@@ -6,3 +6,6 @@ src/__pycache__
 
 # cloned repo containing scraped data as JSON
 mountain-project-scraper/
+
+# files too large at the moment
+data/

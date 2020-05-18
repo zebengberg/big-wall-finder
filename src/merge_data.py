@@ -11,11 +11,11 @@ cliffs = ee.FeatureCollection('users/zebengberg/big_walls/ee_data')
 
 
 MP_THRESHOLD = 200
-cliffs = cliffs.set({
+cliffs = cliffs.map(lambda f: f.set({
     'num_rock_routes': 0,
     'num_views': 0,
     'distance_to_mp': MP_THRESHOLD
-})
+}))
 
 def set_closest_cliff_id(f):
   """Find the id of the closest cliff and set it as a property, or return None."""
@@ -65,7 +65,7 @@ task = ee.batch.Export.table.toDrive(
 # Exporting as an ee asset in order to run the merge_data script.
 asset_task = ee.batch.Export.table.toAsset(
     collection=merged,
-    description='exporting big wall data as asset',
+    description='merging mp and big wall data',
     assetId='users/zebengberg/big_walls/merged_data'
 )
 
