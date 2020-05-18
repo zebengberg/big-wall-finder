@@ -9,7 +9,7 @@ import numpy as np
 ee.Initialize()
 
 STEEP_THRESHOLD = 70
-HEIGHT_THRESHOLD = 80
+HEIGHT_THRESHOLD = 90
 
 # Importing datasets
 dem = ee.Image('USGS/NED')
@@ -71,9 +71,9 @@ def get_cliffs(rectangle):
   ).get('b1')))
   features = features.filter(ee.Filter.notNull(['centroid_lith']))
   features = features.map(set_lithology)
-  features = features.map(lambda f: set_population(f, 3 * 10 ** 4))
-  features = features.map(lambda f: set_population(f, 10 ** 5))
-  features = features.map(lambda f: set_population(f, 2 * 10 ** 5))
+  features = features.map(lambda f: set_population(f, 30))
+  features = features.map(lambda f: set_population(f, 100))
+  features = features.map(lambda f: set_population(f, 200))
   features = features.map(lambda f: set_road_within_distance(f, 500))
   features = features.map(lambda f: set_road_within_distance(f, 1000))
   features = features.map(lambda f: set_road_within_distance(f, 1500))
@@ -86,16 +86,16 @@ def get_cliffs(rectangle):
 
 
 def set_population(feature, distance):
-  """Add population within specified distance of feature."""
+  """Add population within specified distance in km of feature."""
   geo = ee.Geometry(feature.get('centroid'))
-  disk = geo.buffer(distance)
+  disk = geo.buffer(ee.Number(distance).multiply(1000))
   count = pop.reduceRegion(reducer='sum', geometry=disk)
   count = ee.Number(count.get('population_count')).toInt()
   return feature.set('population_within_{}km'.format(distance), count)
 
 
 def set_road_within_distance(feature, distance):
-  """Determine if there is a road within specified distance of feature."""
+  """Determine if there is a road within specified distance in m of feature."""
   geo = ee.Geometry(feature.get('centroid'))
   disk = geo.buffer(distance)
   close_roads = roads.filterBounds(disk)

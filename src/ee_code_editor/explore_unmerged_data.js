@@ -6,7 +6,7 @@ with those found through the elevation data.
 */
 
 var mp = ee.FeatureCollection('users/zebengberg/big_walls/mp_data');
-var bw = ee.FeatureCollection('users/zebengberg/big_walls/ee_data');
+var cliffs = ee.FeatureCollection('users/zebengberg/big_walls/ee_data');
 
 
 // Display a pin for each MP area. Area of each pin is proportional
@@ -14,28 +14,43 @@ var bw = ee.FeatureCollection('users/zebengberg/big_walls/ee_data');
 mp = mp.map(function(f) {
   var size = ee.Number(f.get('num_rock_routes')).multiply(2000)
   .add(f.get('num_views'));
-  size = size.divide(5000).sqrt();
+  size = size.divide(2000).sqrt();
   return f.set({styleProp: {pointSize: size}});
 });
 
+
+// Give each cliff a color from custom color palette.
+var palette = ee.List(['FFFF00', 'FFF000', 'FFE000', 'FFD000',
+  'FFC000', 'FFB000', 'FFA000', 'FF9000', 'FF8000', 'FF7000',
+  'FF6000', 'FF5000', 'FF4000', 'FF3000', 'FF2000', 'FF1000',
+  'FF0000', 'FF0010', 'FF0020', 'FF0030', 'FF0040', 'FF0050',
+  'FF0060', 'FF0070', 'FF0080', 'FF0090', 'FF00A0', 'FF00B0',
+  'FF00C0', 'FF00D0', 'FF00D0', 'FF00F0', 'FF00FF', 'FF00FF',
+  'FF00FF', 'FF00FF', 'FF00FF', 'FF00FF', 'FF00FF', 'FF00FF']);
+cliffs = cliffs.map(function(f) {
+  // Getting the index within the palette list to color the feature.
+  var index = ee.Number(f.get('height')).divide(40).floor();
+  return f.set({styleProp: {color: palette.get(index)}});
+});
+
+
 Map.setOptions('satellite');
 Map.setCenter(-119.55, 37.75, 12);
-Map.addLayer(mp.style({color: 'red', styleProperty: 'styleProp'}));
+Map.addLayer(cliffs.style({styleProperty: 'styleProp'}), null, 'cliffs');
+Map.addLayer(mp.style({color: 'lime', styleProperty: 'styleProp'}), null, 'mp');
 
 
-// When clicking the map, display a disk and calculate the number of
-// MP routes and views within the disk.
+// When clicking the map, display a disk and calculate MP stats.
 Map.onClick(function(event) {
   // Removing any old disk
-  var oldDisk = Map.layers().get(1);
+  var oldDisk = Map.layers().get(2);
   if (oldDisk !== undefined) {
     Map.layers().remove(oldDisk);
   }
-  
-  // Adding a new disk at the click location
+  // Calculate within disk at the click location
   var p = ee.Geometry.Point(event.lon, event.lat);
-  var disk = p.buffer(1000);
-  Map.addLayer(disk);
+  var disk = p.buffer(500);
+  Map.addLayer(disk, {color: 'pink'}, 'clicked_disk');
   var close_mp = mp.filterBounds(disk);
   var rock = close_mp.aggregate_sum('num_rock_routes');
   var views = close_mp.aggregate_sum('num_views');
