@@ -24,6 +24,10 @@ See [Methodolgy](#methodology) for details, and see [Pipeline](#pipeline) for vi
 
 ## Screenshots
 
+Exploring the correspondence between Mountain Project areas (green dots) and cliff-like formations found with Earth Engine (yellow-red bands).
+![yosemite](assets/yosemite.png)
+![zion](assets/zion.png)
+
 ## Technologies
 
 Languages, APIs, and libraries include:
@@ -116,7 +120,7 @@ An aside. This function is likely highly nonlinear. Most cliff bands contain loo
 
 Beyond our major assumption ACCESSIBLE = COMPLETE, we list several other defects of our approach.
 
-- The USGS Elevation dataset is coarse. The pixel resolution of this raster data is roughly 10m x 10m. Said differently, elevation is sampled only one in each 10m x 10m square on the earth's surface. As a consequence, it is not possible to identify steep but short cliffs using this dataset. For example, a vertical cliff that is exactly 10m tall will appear as a 45 degree slab from the perspective of this dataset. Once lidar data become more widely available, this could be used in place of the USGS Elevation dataset. With lidar data, it might be possible to detect "small wall" climbing in addition to big wall climbing.
+- The USGS Elevation dataset is coarse. The pixel resolution of this raster data is roughly 10m x 10m. Said differently, elevation is sampled only one in each 10m x 10m square on the earth's surface. As a consequence, it is not possible to identify steep but short cliffs using this dataset. For example, a vertical cliff that is exactly 10m tall will appear as a 45 degree slab from the perspective of this dataset. Once lidar data become more widely available, this could be used in place of the USGS Elevation dataset. With lidar data, it might be possible to detect "small wall" climbing in addition to big wall climbing. This project will not detect CLFs under 100m in height.
 - The USGS Elevation dataset is noisy. As an extreme example, the dataset (used within Google Maps for the terrain layer) shows a [4000 foot deep X-shaped hole](https://goo.gl/maps/HTCByKHDRR2GjdheA) in the ground in the middle of the desert. In another arbitrary location, we have a [nearly 5000 foot deep well](https://goo.gl/maps/KDranmgbPAi18pzh9). These glitches are drastic, but rare. More commonly, spikey non-smooth terrain gives rise to highly volatile elevation readings. Mistakes within the elevation data should be scrubbed from the dataset if possible. We attempt this in the [clean_data.py](src/clean_data.py) script.
 - Mountain Project data are incomplete. In some sense, this project would not exist if the Mountain Project corpus was a complete data set. Nevertheless, having stronger Mountain Project data may allow us to weaken our ACCESSIBLE = COMPLETE assumption and yield better results.
 - Within the accessible CLFs data, there is a significant imbalance: most accessible CLFs have no entry on Mountain Project. There are standard techniques to account for this (oversampling the under-represented class), but it may not be possible to completely remove bias from the model.
