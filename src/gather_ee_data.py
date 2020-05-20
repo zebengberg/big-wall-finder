@@ -8,10 +8,9 @@ import ee
 import numpy as np
 ee.Initialize()
 
-# Set these particular thresholds so that resulting csv stays within GitHub's
-# 100mb limit for files.
-STEEP_THRESHOLD = 70
-HEIGHT_THRESHOLD = 100
+# Completely arbitrary thresholds based on my intuition.
+STEEP_THRESHOLD = 70  # degrees
+HEIGHT_THRESHOLD = 80  # meters
 
 # Importing datasets
 dem = ee.Image('USGS/NED')
@@ -153,6 +152,19 @@ rectangles = rectangles.map(lambda f: ee.Feature(f).geometry())
 results = rectangles.map(get_cliffs, True)  # dropping nulls
 results = results.flatten()
 results = ee.FeatureCollection(results)  # casting from ee.List
+
+# Buffering and simplifying the geometry of each calculated cliff. This serves
+# several purposes:
+# - Buffering converts each MultiPolygon object to a Polygon object by
+#   eliminating intersections at single vertices, thereby simplifying the
+#   geometry.
+# - Reduces the number of vertices within each Polygon, thereby greatly reducing
+#   the exported CSV file size.
+# - Smooths the boundaries of the cliff geometries, more closely resembling
+#   what is happening in the real world.
+# - Relaxes the somewhat artificial STEEP_THRESHOLD.
+# - Improves runtime of merge_data.py
+results = results.map(lambda f: f.setGeometry(f.buffer(10).geometry().simplify(maxError=50)))
 
 # Exporting results to drive for local download
 task = ee.batch.Export.table.toDrive(

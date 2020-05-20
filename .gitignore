@@ -1,5 +1,6 @@
 # editor stuff
 .vscode/
+.ipynb_checkpoints/
 
 # build stuff
 src/__pycache__
@@ -9,3 +10,6 @@ mountain-project-scraper/
 
 # files too large at the moment
 data/
+
+# OS stuff
+.DS_Store

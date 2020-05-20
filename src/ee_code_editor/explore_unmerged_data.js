@@ -8,6 +8,9 @@ with those found through the elevation data.
 var mp = ee.FeatureCollection('users/zebengberg/big_walls/mp_data');
 var cliffs = ee.FeatureCollection('users/zebengberg/big_walls/ee_data');
 
+// In order to see vectorized data upon inspection.
+Map.addLayer(mp, null, 'mp_vector', false);
+Map.addLayer(cliffs, null, 'cliff_vector', false);
 
 // Display a pin for each MP area. Area of each pin is proportional
 // to the score of the area.
@@ -20,6 +23,7 @@ mp = mp.map(function(f) {
 
 
 // Give each cliff a color from custom color palette.
+// Need to include so many colors due to some mistakes in elevation data.
 var palette = ee.List(['FFFF00', 'FFF000', 'FFE000', 'FFD000',
   'FFC000', 'FFB000', 'FFA000', 'FF9000', 'FF8000', 'FF7000',
   'FF6000', 'FF5000', 'FF4000', 'FF3000', 'FF2000', 'FF1000',
@@ -35,7 +39,7 @@ cliffs = cliffs.map(function(f) {
 
 
 Map.setOptions('satellite');
-Map.setCenter(-119.55, 37.75, 12);
+Map.setCenter(-119.55, 37.75, 11);
 Map.addLayer(cliffs.style({styleProperty: 'styleProp'}), null, 'cliffs');
 Map.addLayer(mp.style({color: 'lime', styleProperty: 'styleProp'}), null, 'mp');
 
@@ -43,7 +47,7 @@ Map.addLayer(mp.style({color: 'lime', styleProperty: 'styleProp'}), null, 'mp');
 // When clicking the map, display a disk and calculate MP stats.
 Map.onClick(function(event) {
   // Removing any old disk
-  var oldDisk = Map.layers().get(2);
+  var oldDisk = Map.layers().get(4);
   if (oldDisk !== undefined) {
     Map.layers().remove(oldDisk);
   }
@@ -54,5 +58,5 @@ Map.onClick(function(event) {
   var close_mp = mp.filterBounds(disk);
   var rock = close_mp.aggregate_sum('num_rock_routes');
   var views = close_mp.aggregate_sum('num_views');
-  print(rock);
+  print('Number of MP routes in vicinity: ' + rock.getInfo());
 });

@@ -9,11 +9,19 @@ ee.Initialize()
 mp = ee.FeatureCollection('users/zebengberg/big_walls/mp_data')
 cliffs = ee.FeatureCollection('users/zebengberg/big_walls/ee_data')
 
-# Starting by simplifying the geometry of each calculated cliff. Doing this will
-# greatly improve the runtime of the join relying on the distance filter. Setting
-# a larger maxError value smooths to a larger extent. Putting in a small buffer
-# then simplifying forces all geometry to be polygon rather than multipolygon.
-cliffs = cliffs.map(lambda f: f.setGeometry(f.buffer(10).geometry().simplify(maxError=50)))
+# Rectangle from gather_ee_data.py used to clip MP data to region of interest.
+x0, x1 = -125, -102
+y0, y1 = 31, 49
+rectangle = ee.Geometry.Rectangle(x0, y0, x1, y1)
+mp = mp.filterBounds(rectangle)
+
+# Giving each cliff an immutable custom index that won't change as individual
+# cliff Features are moved from one Collection to another.
+cliffs = cliffs.map(lambda f: f.set('custom_index', f.get('system:index')))
+
+# We only care about rock climbing as opposed to bouldering and winter climbing
+# for the first join.
+mp_routes = mp.filterMetadata('num_rock_routes', 'greater_than', 0)
 
 
 # Critical threshold used to determine association between MP areas and cliffs.
@@ -26,13 +34,23 @@ MP_THRESHOLD = 300
 filter1 = ee.Filter.withinDistance(distance=MP_THRESHOLD, leftField='.geo',
                                    rightField='.geo', maxError=50)
 join1 = ee.Join.saveBest(matchKey='closest_cliff', measureKey='distance_to_mp')
-joined1 = join1.apply(mp, cliffs, filter1)
+joined1 = join1.apply(mp_routes, cliffs, filter1)
 
 # The resulting FeatureCollection does not fit nicely into a table; export as
 # CSV fails. Here we pull out the cliff joined to each MP area.
 close_cliffs = joined1.map(lambda f: ee.Feature(f.get('closest_cliff')).set({
     'num_rock_routes': f.get('num_rock_routes'),
     'num_views': f.get('num_views')}))
+
+# delete later
+task = ee.batch.Export.table.toDrive(
+    collection=close_cliffs,
+    description='intermediate results',
+    fileFormat='CSV',
+    folder='earth-engine',
+    fileNamePrefix='close_cliffs',
+)
+task.start()
 
 
 # We have now associated each MP area to either 0 or 1 cliffs. Each cliff may
@@ -51,13 +69,23 @@ def aggregate_associated_mp_areas(f):
       f.set({
           'num_rock_routes': 0,
           'num_views': 0,
-          'distance_to_mp': MP_THRESHOLD  # actual distance is greater than this
+          'distance_to_mp': None
       }))
 
-filter2 = ee.Filter.equals(leftField='system:index', rightField='system:index')
+filter2 = ee.Filter.equals(leftField='custom_index', rightField='custom_index')
 join2 = ee.Join.saveAll(matchesKey='mp_areas', outer=True)
 joined2 = join2.apply(cliffs, close_cliffs, filter2)
 joined2 = joined2.map(aggregate_associated_mp_areas)
+
+# delete later
+task = ee.batch.Export.table.toDrive(
+    collection=joined2,
+    description='intermediate results',
+    fileFormat='CSV',
+    folder='earth-engine',
+    fileNamePrefix='joined2',
+)
+task.start()
 
 
 # We now use one more join to look at MP activity within a larger vicinity of
@@ -80,7 +108,7 @@ def aggregate_vicinity_mp_areas(f):
           'vicinity_num_views': 0,
       }))
 
-filter3 = ee.Filter.withinDistance(distance=500, leftField='.geo',
+filter3 = ee.Filter.withinDistance(distance=600, leftField='.geo',
                                    rightField='.geo', maxError=200)
 join3 = ee.Join.saveAll(matchesKey='vicinity_mp_areas', outer=True)
 joined3 = join3.apply(joined2, mp, filter3)
