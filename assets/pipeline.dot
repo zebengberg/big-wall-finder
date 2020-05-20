@@ -16,7 +16,7 @@ digraph G {
   explore_data [label = "explore_data.ipynb"; shape = rpromoter; fillcolor = green]
 
   clean_data [label = "clean_data.py"; shape = rpromoter; fillcolor = green]
-  models [label = "models.py"; shape = rpromoter; fillcolor = green]
+  predict [label = "predict.py"; shape = rpromoter; fillcolor = green]
   results [label = "results.csv"; shape = note; fillcolor = "green:yellow"]
   simplified_results [label = "simplified_results.csv"; shape = note; fillcolor = "green"]
 
@@ -26,6 +26,6 @@ digraph G {
   mp_scrape -> json -> parse_mp -> mp_data -> {explore_unmerged, merge_data}
   gather_ee -> ee_data -> {explore_unmerged, merge_data}
   merge_data -> merged_data -> {explore_data, clean_data}
-  clean_data -> models -> {results, simplified_results}
+  clean_data -> predict -> {results, simplified_results}
   results -> view_results -> app
 }

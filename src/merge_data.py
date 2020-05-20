@@ -26,8 +26,8 @@ filt = ee.Filter.withinDistance(distance=MP_THRESHOLD, leftField='.geo',
 join = ee.Join.saveBest(matchKey='closest_cliff', measureKey='distance_to_mp')
 joined = join.apply(mp, cliffs, filt)
 
-# The resulting FeatureCollection does not fit nicely into a CSV data. Here we
-# pull out the cliff joined to each MP area.
+# The resulting FeatureCollection does not fit nicely into a table; export as
+# CSV fails. Here we pull out the cliff joined to each MP area.
 close_cliffs = joined.map(lambda f: ee.Feature(f.get('closest_cliff')).set({
     'num_rock_routes': f.get('num_rock_routes'),
     'num_views': f.get('num_views'),
@@ -36,18 +36,22 @@ close_cliffs = joined.map(lambda f: ee.Feature(f.get('closest_cliff')).set({
 
 # We have now associated each MP area to either 0 or 1 cliffs. Each cliff may
 # have any number of MP areas associated to it. We build another join to sum the
-# MP areas for each cliff.
+# MP area data for each cliff.
 
 def aggregate_associated_mp_areas(f):
   """Extract and aggregate mp data from feature arising in join."""
-  mp_areas = ee.FeatureCollection(f.get('mp_areas'))
-  num_rock_routes = mp_areas.aggregate_sum('num_rock_routes')
-  num_views = mp_areas.aggregate_sum('num_views')
-  distance_to_mp = mp_areas.aggregate_min('distance_to_mp')
-  return f.set({
-      'num_rock_routes': num_rock_routes,
-      'num_views': num_views,
-      'distance_to_mp': distance_to_mp})
+  mp_areas = ee.List(f.get('mp_areas'))
+  return ee.Algorithms.If(
+      mp_areas.size(),
+      f.set({
+          'num_rock_routes': ee.FeatureCollection(mp_areas).aggregate_sum('num_rock_routes'),
+          'num_views': ee.FeatureCollection(mp_areas).aggregate_sum('num_views'),
+          'distance_to_mp': ee.FeatureCollection(mp_areas).aggregate_min('distance_to_mp')}),
+      f.set({
+          'num_rock_routes': 0,
+          'num_views': 0,
+          'distance_to_mp': MP_THRESHOLD  # actual distance is greater than this
+      }))
 
 filt = ee.Filter.equals(leftField='system:index', rightField='system:index')
 join = ee.Join.saveAll(matchesKey='mp_areas', outer=True)
