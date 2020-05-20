@@ -17,27 +17,28 @@ cliffs = cliffs.map(lambda f: f.setGeometry(f.buffer(10).geometry().simplify(max
 
 
 # Critical threshold used to determine association between MP areas and cliffs.
-MP_THRESHOLD = 200
+# Because we save the distance from MP to closest cliff, we have some flexibility
+# to filter by distance later within pandas.
+MP_THRESHOLD = 300
 
 # We start by associating each MP area to its closest cliff. If the MP area has
 # no close cliffs, it is dropped.
-filt = ee.Filter.withinDistance(distance=MP_THRESHOLD, leftField='.geo',
-                                rightField='.geo', maxError=50)
-join = ee.Join.saveBest(matchKey='closest_cliff', measureKey='distance_to_mp')
-joined = join.apply(mp, cliffs, filt)
+filter1 = ee.Filter.withinDistance(distance=MP_THRESHOLD, leftField='.geo',
+                                   rightField='.geo', maxError=50)
+join1 = ee.Join.saveBest(matchKey='closest_cliff', measureKey='distance_to_mp')
+joined1 = join1.apply(mp, cliffs, filter1)
 
 # The resulting FeatureCollection does not fit nicely into a table; export as
 # CSV fails. Here we pull out the cliff joined to each MP area.
-close_cliffs = joined.map(lambda f: ee.Feature(f.get('closest_cliff')).set({
+close_cliffs = joined1.map(lambda f: ee.Feature(f.get('closest_cliff')).set({
     'num_rock_routes': f.get('num_rock_routes'),
-    'num_views': f.get('num_views'),
-}))
+    'num_views': f.get('num_views')}))
 
 
 # We have now associated each MP area to either 0 or 1 cliffs. Each cliff may
 # have any number of MP areas associated to it. We build another join to sum the
-# MP area data for each cliff.
-
+# MP area data for each cliff. Now each cliff holds a whole list of MP areas
+# associated to it. For many cliffs, this list is empty.
 def aggregate_associated_mp_areas(f):
   """Extract and aggregate mp data from feature arising in join."""
   mp_areas = ee.List(f.get('mp_areas'))
@@ -53,57 +54,50 @@ def aggregate_associated_mp_areas(f):
           'distance_to_mp': MP_THRESHOLD  # actual distance is greater than this
       }))
 
-filt = ee.Filter.equals(leftField='system:index', rightField='system:index')
-join = ee.Join.saveAll(matchesKey='mp_areas', outer=True)
-joined = join.apply(cliffs, close_cliffs, filt)
-merged = joined.map(aggregate_associated_mp_areas)
+filter2 = ee.Filter.equals(leftField='system:index', rightField='system:index')
+join2 = ee.Join.saveAll(matchesKey='mp_areas', outer=True)
+joined2 = join2.apply(cliffs, close_cliffs, filter2)
+joined2 = joined2.map(aggregate_associated_mp_areas)
 
 
-# For each cliff, we determine its accessibility score. We'll use this to
-# distinguish cliffs which are likely to have been explored.
-def set_accessibility(f):
-  """Determine if a feature is accessible from MP, population, and road data. """
-  cond1 = ee.Number(f.get('road_within_1000m'))
-  cond2 = ee.Number(f.get('population_within_30km')).gt(50000)
-  cond3 = ee.Number(f.get('population_within_100km')).gt(1000000)
-  # Checking if surrounding zone has been explored on documented on MP.
-  cond4 = ee.Number(get_mp_score_in_disk(f)).gt(10000)
-  cond = cond1.And(cond2.Or(cond3)).Or(cond4)
-  return f.set({'is_accessible': cond})
+# We now use one more join to look at MP activity within a larger vicinity of
+# the cliff. Unlike the first join, here cliffs are primary and mp is secondary.
+# The geometry settings are different here as well: our distance threshold and
+# the allowable error are much larger, which results in simplified polygons.
+# This will be used as a measure of accessibility on the pandas-side of things.
+def aggregate_vicinity_mp_areas(f):
+  """Extract and aggregate mp data within vicinity of feature."""
+  mp_areas = ee.List(f.get('vicinity_mp_areas'))
+  return ee.Algorithms.If(
+      mp_areas.size(),
+      f.set({
+          'vicinity_num_rock_routes':
+              ee.FeatureCollection(mp_areas).aggregate_sum('num_rock_routes'),
+          'vicinity_num_views':
+              ee.FeatureCollection(mp_areas).aggregate_sum('num_views')}),
+      f.set({
+          'vicinity_num_rock_routes': 0,
+          'vicinity_num_views': 0,
+      }))
 
-# Function below may be as performant as a join, especially with huge maxError.
-# https://developers.google.com/earth-engine/best_practices#join-vs.-map-filter
-def get_mp_score_in_disk(f):
-  """Use MP data to give score based on routes and views in a disk around feature."""
-  # looking at mp data within 500m of feature
-  blob = f.geometry().buffer(500).simplify(maxError=200)
-  close_mp = mp.filterBounds(blob)
-  num_rock_routes = close_mp.aggregate_sum('num_rock_routes')
-  num_views = close_mp.aggregate_sum('num_views')
-  return num_rock_routes.multiply(1000).add(num_views)
+filter3 = ee.Filter.withinDistance(distance=500, leftField='.geo',
+                                   rightField='.geo', maxError=200)
+join3 = ee.Join.saveAll(matchesKey='vicinity_mp_areas', outer=True)
+joined3 = join3.apply(joined2, mp, filter3)
+joined3 = joined3.map(aggregate_vicinity_mp_areas)
 
-# Now setting accessibility for cliffs.
-merged = merged.map(set_accessibility)
 
 # Exporting results to drive for local download
 task = ee.batch.Export.table.toDrive(
-    collection=merged,
+    collection=joined3,
     description='merging mp and big wall data',
     fileFormat='CSV',
     folder='earth-engine',
     fileNamePrefix='merged_data',
 )
 
-# Exporting as an ee asset in order to run the merge_data script.
-asset_task = ee.batch.Export.table.toAsset(
-    collection=merged,
-    description='merging mp and big wall data',
-    assetId='users/zebengberg/big_walls/merged_data'
-)
-
 task.start()
 t = task.status()
 for k, v in t.items():
   print('{}: {}'.format(k, v))
-# asset_task.start()
 # Call ee.batch.Task.list() to see current status of exports.
