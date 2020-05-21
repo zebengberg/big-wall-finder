@@ -55,8 +55,36 @@ Map.onClick(function(event) {
   var p = ee.Geometry.Point(event.lon, event.lat);
   var disk = p.buffer(500);
   Map.addLayer(disk, {color: 'pink'}, 'clicked_disk');
-  var close_mp = mp.filterBounds(disk);
-  var rock = close_mp.aggregate_sum('num_rock_routes');
-  var views = close_mp.aggregate_sum('num_views');
-  print('Number of MP routes in vicinity: ' + rock.getInfo());
+  var closeMP = mp.filterBounds(disk);
+  closeMP = closeMP.sort('num_views', false);
+  var closeCliffs = cliffs.filterBounds(disk);
+  
+  var rock = closeMP.aggregate_sum('num_rock_routes').getInfo();
+  var maxHeight = closeCliffs.aggregate_max('height').getInfo();
+  if (maxHeight) {
+    maxHeight += 'm';
+  } else {
+    maxHeight = 'No cliffs found!';
+  }
+  var name = closeMP.aggregate_first('name').getInfo();
+  if (name === null) {
+    name = 'No MP area found!';
+  }
+
+  var rockInfo = ui.Label('Number of MP routes in vicinity: ' + rock);
+  var heightInfo = ui.Label('Tallest cliff in vicinity: ' + maxHeight);
+  var nameInfo = ui.Label('Most viewed MP area: ' + name);
+  resultsPanel.clear().add(rockInfo).add(heightInfo).add(nameInfo).add(button);
 });
+
+
+var resultsPanel = ui.Panel({style: {position: 'bottom-left', width: '500px'}});
+var instructionsLabel = ui.Label("Click map to generate a disk and see what's inside.");
+var button = ui.Button('Clear results', clearResults);
+Map.add(resultsPanel.add(instructionsLabel));
+
+function clearResults() {
+  resultsPanel.clear().add(instructionsLabel);
+}
+
+
