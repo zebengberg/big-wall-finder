@@ -8,9 +8,9 @@ import ee
 import numpy as np
 ee.Initialize()
 
-# Completely arbitrary thresholds based on my intuition.
+# Completely arbitrary thresholds based on intuition and data limits.
 STEEP_THRESHOLD = 70  # degrees
-HEIGHT_THRESHOLD = 80  # meters
+HEIGHT_THRESHOLD = 50  # meters
 
 # Importing datasets
 dem = ee.Image('USGS/NED')
@@ -68,8 +68,7 @@ def get_cliffs(rectangle):
   # Need lithology to be unmasked to avoid critical errors.
   features = features.map(lambda f: f.set(
       'centroid_lith',
-      lith.reduceRegion(reducer='first', geometry=f.get('centroid')
-  ).get('b1')))
+      lith.reduceRegion(reducer='first', geometry=f.get('centroid')).get('b1')))
   features = features.filter(ee.Filter.notNull(['centroid_lith']))
   features = features.map(set_lithology)
   features = features.map(lambda f: set_population(f, 30))
@@ -185,6 +184,6 @@ asset_task = ee.batch.Export.table.toAsset(
 task.start()
 t = task.status()
 for k, v in t.items():
-  print('{}: {}'.format(k, v))
+  print(f'{k}: {v}')
 asset_task.start()
 # Call ee.batch.Task.list() to see current status of exports.
