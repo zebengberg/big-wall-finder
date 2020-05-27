@@ -7,15 +7,20 @@ digraph G {
   json [label = "clean-data.json"; shape = note; fillcolor = green]
   parse_mp [label = "parse_mp_data.py"; shape = rpromoter; fillcolor = green]
   mp_data [label = "mp_data.csv"; shape = note; fillcolor = "green:yellow"]
-  explore_unmerged [label = "explore_unmerged_data.js"; shape = rpromoter; fillcolor = yellow]
 
   gather_ee [label = "gather_ee_data.py"; shape = rpromoter; fillcolor = yellow]
   ee_data [label = "ee_data.csv"; shape = note; fillcolor = yellow]
-  merge_data [label = "merge_data.py"; shape = rpromoter; fillcolor = "yellow"]
-  merged_data [label = "merged_data.csv"; shape = note; fillcolor = "yellow:green"]
-  explore_data [label = "explore_data.ipynb"; shape = rpromoter; fillcolor = green]
 
-  clean_data [label = "clean_data.py"; shape = rpromoter; fillcolor = green]
+  explore_unmerged [label = "explore_unmerged_data.js"; shape = rpromoter; fillcolor = yellow]
+
+  join_data [label = "join_data.py"; shape = rpromoter; fillcolor = "yellow"]
+  ee_joined [label = "ee_joined.csv"; shape = note; fillcolor = "green"]
+  mp_joined [label = "mp_joined.csv"; shape = note; fillcolor = "green"]
+
+  explore_data [label = "explore_data.ipynb"; shape = rpromoter; fillcolor = green]
+  merge_data [label = "merge_data.py"; shape = rpromoter; fillcolor = "green"]
+  merged_data [label = "merged_data.csv"; shape = note; fillcolor = "green"]
+
   predict [label = "predict.py"; shape = rpromoter; fillcolor = green]
   results [label = "results.csv"; shape = note; fillcolor = "green:yellow"]
   simplified_results [label = "simplified_results.csv"; shape = note; fillcolor = "green"]
@@ -23,9 +28,9 @@ digraph G {
   view_results [label = "view_results.js"; shape = rpromoter; fillcolor = yellow]
   app [label = "Earth\nEngine\nApp"; shape = hexagon; fillcolor = orange]
 
-  mp_scrape -> json -> parse_mp -> mp_data -> {explore_unmerged, merge_data}
-  gather_ee -> ee_data -> {explore_unmerged, merge_data}
-  merge_data -> merged_data -> {explore_data, clean_data}
-  clean_data -> predict -> {results, simplified_results}
+  mp_scrape -> json -> parse_mp -> mp_data -> {explore_unmerged, join_data}
+  gather_ee -> ee_data -> {explore_unmerged, join_data}
+  join_data -> {ee_joined, mp_joined} -> {explore_data, merge_data}
+  merge_data -> merged_data -> predict -> {results, simplified_results}
   results -> view_results -> app
 }
