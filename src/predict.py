@@ -1,80 +1,110 @@
 import pandas as pd
 import numpy as np
 import xgboost as xgb
-from sklearn.linear_model import LinearRegression, LogisticRegression
+from sklearn.linear_model import LinearRegression, Ridge, Lasso
 from sklearn.neighbors import KNeighborsRegressor
+from sklearn.metrics import r2_score
 from imblearn.over_sampling import SMOTE, SVMSMOTE, ADASYN, RandomOverSampler
-from prepare_big_wall_data import prepare_big_wall_data
 
 # Importing data
-accessible, inaccessible = prepare_big_wall_data()
+df = pd.read_csv('../data/merged_data.csv')
+accessible = df[df.is_accessible]
+inaccessible = df[~df.is_accessible]
 
 
 
-def build_x_y(prob=0.9):
+def create_train_test(train_size=0.9):
   """Create balanced classes by oversampling."""
-  X_pred = inaccessible.copy()  # to be used to make predictions
 
-  X = accessible.drop(columns=['latitude', 'longitude', 'mp_score'])
-  mask = np.random.rand(len(X)) < prob
+  # Discretizing the continuous target variable mp_score to create 10 integer classes
+  X = accessible.drop(columns=['latitude', 'longitude', 'is_accessible', '.geo'])
+  y = np.ceil(10 * accessible.mp_score).astype('int32')
+
+  # Grabbing an equal number of samples from each class
+  model = RandomOverSampler()
+  X, y = model.fit_resample(X, y)
+
+  # Going back to the continuous targets which we're kept in X. Using the
+  # model indices to reset y.
+  indices = model.sample_indices_
+  y = X.mp_score[indices]
+  X.drop('mp_score', axis=1, inplace=True)
+
+  # Building the train test split.
+  mask = np.random.rand(len(X)) < train_size
   X_train = X[mask]
   X_test = X[~mask]
-
-  # For now, running classification models instead of regression.
-  y = accessible.mp_score > 0
-  y = y.map(lambda x: 1 if x else 0)
   y_train = y[mask]
   y_test = y[~mask]
-
-  # Oversampling the imbalanced training data.
-  X_train, y_train = RandomOverSampler().fit_resample(X_train, y_train)
-
-  return X_train, y_train, X_test, y_test, X_pred
+  return X_train, y_train, X_test, y_test
 
 
-def run_linear():
-  """Train and predict with a simple linear regression."""
-  X_train, y_train, X_test, y_test, X_pred = build_x_y()
-  model = LinearRegression().fit(X_train, y_train)
-  print('Linear model fit score: {}\n'.format(model.score(X_test, y_test)))
-  y_pred = model.predict(X_pred.drop(columns=['latitude', 'longitude', 'mp_score']))
-
-  print_top_results(X_pred, y_pred, 'linear')
-  return y_pred
-
-
-def run_logistic():
-  """Train and predict with a simple logistic classification."""
-  X_train, y_train, X_test, y_test, X_pred = build_x_y()
-  model = LogisticRegression(max_iter=200).fit(X_train, y_train)
-  print('Logistic model fit score: {}\n'.format(model.score(X_test, y_test)))
+def get_predictions(model, X_test=None, y_test=None, display=False):
+  """Print the inaccessible cliff formations with the highest predicted score."""
   
-  # Use predict_proba() to get probabilities of hittng a class, not classes themselves.
-  # On the otherhand, predict() uses a cutoff at 0.5 to make a choice.
-  y_pred = model.predict_proba(X_pred.drop(columns=['latitude', 'longitude', 'mp_score']))
-  y_pred = y_pred[:, 1:]
+  results = inaccessible.drop(columns=['is_accessible', '.geo'])
+  X_pred = results.drop(columns=['latitude', 'longitude', 'mp_score'])
+  results['score'] = model.predict(X_pred)
+  results.height *= 1000
+  results = results[['latitude', 'longitude', 'height', 'mp_score', 'score']]
+  results.sort_values(by='score', ascending=False, inplace=True)
 
-  print_top_results(X_pred, y_pred, 'logistic')
-  return y_pred
-  
+  if display:
+    print('\n' + '_' * 80 + '\n')
+    print(f'Model: {model.name}')
+    if X_test is None and y_test is None:
+      print('Pass X_test and y_test if you want to model score.')
+    else:
+      y_test_pred = model.predict(X_test)
+      print(f'Fit score: {r2_score(y_test, y_test_pred)}')
+    number_to_print = 20
+    print(f'Top {number_to_print} results from {model.name} prediction.\n')
+    print(results[:number_to_print].to_string(index=False))
+    print('\n' + '_' * 80)
 
-def run_xgb():
-  """Train and predict with a boosted gradient tree."""
-  X_train, y_train, X_test, y_test, X_pred = build_x_y()
-  # dmatrix = xgb.DMatrix(data=X_train, label=y_train)
-  # can also use XGBClassifier
-  model = xgb.XGBRegressor(objective ='reg:squarederror', colsample_bytree = 0.3,
-    learning_rate = 0.1, max_depth = 5, alpha = 10, n_estimators = 10)
+  return results
+
+def run_linear(display=False):
+  """Train a simple linear regression."""
+  X_train, y_train, X_test, y_test = create_train_test()
+  model = LinearRegression()
   model.fit(X_train, y_train)
-  
-  # Results
-  y_pred = model.predict(X_pred.drop(columns=['latitude', 'longitude', 'mp_score']))
+  model.name = 'linear'
+  return get_predictions(model, X_test, y_test, display)
 
-  # Printing and returning
-  print_top_results(X_pred, y_pred, 'xgb')
-  return y_pred
+def run_lasso(display=False):
+  """Train a lasso linear regression."""
+  X_train, y_train, X_test, y_test = create_train_test()
+  model = Lasso(alpha=0.001)
+  model.fit(X_train, y_train)
+  model.name = 'lasso'
+  return get_predictions(model, X_test, y_test, display)
+
+def run_ridge(display=False):
+  """Train a lasso linear regression."""
+  X_train, y_train, X_test, y_test = create_train_test()
+  model = Ridge(alpha=100)
+  model.fit(X_train, y_train)
+  model.name = 'ridge'
+  return get_predictions(model, X_test, y_test, display)
+    
+def run_xgb(display=False):
+  """Train a boosted gradient tree."""
+  print('\n' + '_' * 80 + '\n')
+  X_train, y_train, X_test, y_test = create_train_test()
+  model = xgb.XGBRegressor(objective ='reg:squarederror', colsample_bytree = 0.3,
+  learning_rate = 0.1, max_depth = 5, alpha = 10, n_estimators = 10)
+  model.fit(X_train, y_train)
+  model.name = 'boosted tree'
+  return get_predictions(model, X_test, y_test, display)
 
 
+
+
+
+
+
+# Old stuff below.
 def run_knn(k=40):
   """Predict with k-nearest neighbor regressor."""
   X_train, y_train, X_test, y_test, X_pred = build_x_y(1)
