@@ -66,14 +66,14 @@ task1 = ee.batch.Export.table.toDrive(
     description='joined mp',
     fileFormat='CSV',
     folder='earth-engine',
-    fileNamePrefix='ee_joined')
+    fileNamePrefix='mp_joined')
 
 task2 = ee.batch.Export.table.toDrive(
     collection=cliffs,
     description='joined cliffs',
     fileFormat='CSV',
     folder='earth-engine',
-    fileNamePrefix='mp_joined')
+    fileNamePrefix='ee_joined')
 
 task1.start()
 task2.start()

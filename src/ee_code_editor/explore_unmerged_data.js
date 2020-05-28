@@ -8,10 +8,6 @@ with those found through the elevation data.
 var mp = ee.FeatureCollection('users/zebengberg/big_walls/mp_data');
 var cliffs = ee.FeatureCollection('users/zebengberg/big_walls/ee_data');
 
-// In order to see vectorized data upon inspection.
-Map.addLayer(mp, null, 'mp_vector', false);
-Map.addLayer(cliffs, null, 'cliff_vector', false);
-
 // Display a pin for each MP area. Area of each pin is proportional
 // to the score of the area.
 mp = mp.map(function(f) {
@@ -39,7 +35,6 @@ cliffs = cliffs.map(function(f) {
 
 
 Map.setOptions('satellite');
-Map.setCenter(-119.55, 37.75, 11);
 Map.addLayer(cliffs.style({styleProperty: 'styleProp'}), null, 'cliffs');
 Map.addLayer(mp.style({color: 'lime', styleProperty: 'styleProp'}), null, 'mp');
 
@@ -47,7 +42,7 @@ Map.addLayer(mp.style({color: 'lime', styleProperty: 'styleProp'}), null, 'mp');
 // When clicking the map, display a disk and calculate MP stats.
 Map.onClick(function(event) {
   // Removing any old disk
-  var oldDisk = Map.layers().get(4);
+  var oldDisk = Map.layers().get(2);
   if (oldDisk !== undefined) {
     Map.layers().remove(oldDisk);
   }
@@ -72,8 +67,8 @@ Map.onClick(function(event) {
   }
 
   var rockInfo = ui.Label('Number of MP routes in vicinity: ' + rock);
-  var heightInfo = ui.Label('Tallest cliff in vicinity: ' + maxHeight);
   var nameInfo = ui.Label('Most viewed MP area: ' + name);
+  var heightInfo = ui.Label('Tallest cliff in vicinity: ' + maxHeight);
   resultsPanel.clear().add(rockInfo).add(heightInfo).add(nameInfo).add(button);
 });
 
@@ -85,6 +80,31 @@ Map.add(resultsPanel.add(instructionsLabel));
 
 function clearResults() {
   resultsPanel.clear().add(instructionsLabel);
+  Map.layers().remove(Map.layers().get(2));
 }
 
 
+// Adding a legend for height.
+var bar = ui.Thumbnail({
+  image: ee.Image.pixelLonLat().select(1),
+  params: {
+    bbox: [0, 0, 1, 20],
+    dimensions: '20x20',
+    format: 'png',
+    min: 0,
+    max: 30,
+    palette: palette,
+  },
+  style: {stretch: 'vertical', margin: '8px 0px'},
+});
+
+var legendLabel = ui.Panel([
+  ui.Label('>600m', {margin: '4px 8px', fontWeight: 'bold', height: '50px'}),
+  ui.Label(null, {margin: '4px 8px', fontWeight: 'bold', height: '300px'}),
+  ui.Label('50m', {margin: '4px 8px', fontWeight: 'bold', height: '50px'})
+]);
+  
+var legend = ui.Panel({style: {position: 'bottom-right'}});
+legend.add(ui.Label('Height', {fontWeight: 'bold', margin: '2px'}));
+legend.add(ui.Panel([bar, legendLabel], ui.Panel.Layout.flow('horizontal')));
+Map.add(legend);

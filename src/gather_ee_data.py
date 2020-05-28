@@ -72,13 +72,12 @@ def get_cliffs(rectangle):
   features = features.filter(ee.Filter.notNull(['centroid_lith']))
   features = features.map(set_lithology)
   features = features.map(lambda f: set_population(f, 30))
+  features = features.map(lambda f: set_population(f, 60))
   features = features.map(lambda f: set_population(f, 100))
-  features = features.map(lambda f: set_population(f, 200))
   features = features.map(lambda f: set_road_within_distance(f, 500))
   features = features.map(lambda f: set_road_within_distance(f, 1000))
   features = features.map(lambda f: set_road_within_distance(f, 1500))
   features = features.map(lambda f: set_road_within_distance(f, 2000))
-  features = features.map(lambda f: set_road_within_distance(f, 3000))
 
 
   # Here features is a FeatureCollection object. Casting it to a list.
@@ -91,7 +90,7 @@ def set_population(feature, distance):
   disk = geo.buffer(ee.Number(distance).multiply(1000))
   count = pop.reduceRegion(reducer='sum', geometry=disk)
   count = ee.Number(count.get('population_count')).toInt()
-  return feature.set('population_within_{}km'.format(distance), count)
+  return feature.set(f'population_within_{distance}km', count)
 
 
 def set_road_within_distance(feature, distance):
@@ -100,7 +99,7 @@ def set_road_within_distance(feature, distance):
   disk = geo.buffer(distance)
   close_roads = roads.filterBounds(disk)
   is_close_road = close_roads.size().gt(0)
-  return feature.set('road_within_{}m'.format(distance), is_close_road)
+  return feature.set(f'road_within_{distance}m', is_close_road)
 
 
 def set_lithology(feature):

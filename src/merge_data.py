@@ -43,7 +43,7 @@ def prepare_big_wall_data():
   # Determining which cliffs are accessible; these will comprise the training set.
   accessible = (df.num_views > 1000) | (df.vicinity_num_views > 5000) | \
                ((df.road_within_500m == 1) & (df.population_within_30km > 10_000)) | \
-               ((df.road_within_1000m == 1) & (df.population_within_100km > 500_000)) | \
+               ((df.road_within_1000m == 1) & (df.population_within_60km > 100_000)) | \
                ((df.road_within_1500m == 1) & (df.population_within_100km > 1_000_000)) | \
                ((df.road_within_2000m == 1) & (df.population_within_100km > 2_000_000))
 
@@ -54,10 +54,9 @@ def prepare_big_wall_data():
                    'road_within_1000m',
                    'road_within_1500m',
                    'road_within_2000m',
-                   'road_within_3000m',
                    'population_within_30km',
+                   'population_within_60km',
                    'population_within_100km',
-                   'population_within_200km',
                    'num_views',
                    'vicinity_num_rock_routes',
                    'vicinity_num_views',
