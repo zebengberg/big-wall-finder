@@ -1,159 +1,108 @@
 import pandas as pd
 import numpy as np
-import xgboost as xgb
+import matplotlib.pyplot as plt
+from xgboost import XGBRegressor
 from sklearn.linear_model import LinearRegression, Ridge, Lasso
 from sklearn.neighbors import KNeighborsRegressor
-from sklearn.metrics import r2_score
-from imblearn.over_sampling import SMOTE, SVMSMOTE, ADASYN, RandomOverSampler
-
-# Importing data
-df = pd.read_csv('../data/merged_data.csv')
-accessible = df[df.is_accessible]
-inaccessible = df[~df.is_accessible]
+from imblearn.over_sampling import RandomOverSampler #, SMOTE, SVMSMOTE, ADASYN
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.ensemble import RandomForestRegressor
 
 
+class Model():
+  # static variables
+  data = pd.read_csv('../data/merged_data.csv')
+  accessible = data[data.is_accessible]
+  models = {'linear': LinearRegression(),
+            'ridge': Ridge(),
+            'lasso': Lasso(),
+            'knn': KNeighborsRegressor(),
+            'tree': DecisionTreeRegressor(),
+            'forest': RandomForestRegressor(),
+            'xgb': XGBRegressor()}
 
-def create_train_test(train_size=0.9):
-  """Create balanced classes by oversampling."""
+  def __init__(self, name, params=None):
+    self.name = name
+    self.X_train, self.X_test, self.y_train, self.y_test = self.set_train_test()
 
-  # Discretizing the continuous target variable mp_score to create 10 integer classes
-  X = accessible.drop(columns=['latitude', 'longitude', 'is_accessible', '.geo'])
-  y = np.ceil(10 * accessible.mp_score).astype('int32')
-
-  # Grabbing an equal number of samples from each class
-  model = RandomOverSampler()
-  X, y = model.fit_resample(X, y)
-
-  # Going back to the continuous targets which we're kept in X. Using the
-  # model indices to reset y.
-  indices = model.sample_indices_
-  y = X.mp_score[indices]
-  X.drop('mp_score', axis=1, inplace=True)
-
-  # Building the train test split.
-  mask = np.random.rand(len(X)) < train_size
-  X_train = X[mask]
-  X_test = X[~mask]
-  y_train = y[mask]
-  y_test = y[~mask]
-  return X_train, y_train, X_test, y_test
-
-
-def get_predictions(model, X_test=None, y_test=None, display=False):
-  """Print the inaccessible cliff formations with the highest predicted score."""
-  
-  results = inaccessible.drop(columns=['is_accessible', '.geo'])
-  X_pred = results.drop(columns=['latitude', 'longitude', 'mp_score'])
-  results['score'] = model.predict(X_pred)
-  results.height *= 1000
-  results = results[['latitude', 'longitude', 'height', 'mp_score', 'score']]
-  results.sort_values(by='score', ascending=False, inplace=True)
-
-  if display:
-    print('\n' + '_' * 80 + '\n')
-    print(f'Model: {model.name}')
-    if X_test is None and y_test is None:
-      print('Pass X_test and y_test if you want to model score.')
+    if name in self.__class__.models:
+      self.model = self.__class__.models[name]
     else:
-      y_test_pred = model.predict(X_test)
-      print(f'Fit score: {r2_score(y_test, y_test_pred)}')
-    number_to_print = 20
-    print(f'Top {number_to_print} results from {model.name} prediction.\n')
-    print(results[:number_to_print].to_string(index=False))
-    print('\n' + '_' * 80)
+      raise TypeError(f'Unknown model! The only known models are: { self.__class__.models.keys()}')
+    if parameters:
+      self.model.set_params(**params)  # may throw error if keyword not viable
 
-  return results
+  def set_train_test(self, train_size=0.9):
+    """Create balanced classes by oversampling."""
 
-def run_linear(display=False):
-  """Train a simple linear regression."""
-  X_train, y_train, X_test, y_test = create_train_test()
-  model = LinearRegression()
-  model.fit(X_train, y_train)
-  model.name = 'linear'
-  return get_predictions(model, X_test, y_test, display)
+    # Creating the train test split.
+    X = self.__class__.accessible.drop(columns=['latitude', 'longitude', 'is_accessible',
+                                                '.geo', 'mp_score'])
+    y = self.__class__.accessible.mp_score
+    mask = np.random.rand(len(X)) < train_size
+    X_train, X_test, y_train, y_test = X[mask], X[~mask], y[mask], y[~mask]
 
-def run_lasso(display=False):
-  """Train a lasso linear regression."""
-  X_train, y_train, X_test, y_test = create_train_test()
-  model = Lasso(alpha=0.001)
-  model.fit(X_train, y_train)
-  model.name = 'lasso'
-  return get_predictions(model, X_test, y_test, display)
+    # Discretizing the continuous target variable mp_score to create 10 integer classes.
+    y_train_discretized = np.ceil(10 * y_train).astype('int32')
 
-def run_ridge(display=False):
-  """Train a lasso linear regression."""
-  X_train, y_train, X_test, y_test = create_train_test()
-  model = Ridge(alpha=100)
-  model.fit(X_train, y_train)
-  model.name = 'ridge'
-  return get_predictions(model, X_test, y_test, display)
-    
-def run_xgb(display=False):
-  """Train a boosted gradient tree."""
-  print('\n' + '_' * 80 + '\n')
-  X_train, y_train, X_test, y_test = create_train_test()
-  model = xgb.XGBRegressor(objective ='reg:squarederror', colsample_bytree = 0.3,
-  learning_rate = 0.1, max_depth = 5, alpha = 10, n_estimators = 10)
-  model.fit(X_train, y_train)
-  model.name = 'boosted tree'
-  return get_predictions(model, X_test, y_test, display)
+    # Grabbing an equal number of samples from each class
+    model = RandomOverSampler()
+    X_train, _ = model.fit_resample(X_train, y_train_discretized)
+
+    # Back to the continuous targets which were kept in X.
+    indices = model.sample_indices_
+    y_train = y.iloc[indices]
+
+    return X_train, X_test, y_train, y_test
 
 
 
+  def train(self):
+    """Train the model."""
+    self.model.fit(self.X_train, self.y_train)
 
+  def print_score(self):
+    """Print the r^2 score of the train and test set."""
+    # May raise NotFittedError
+    print('-' * 80)
+    print(f'Scoring {self.name} model.')
+    print(f'Train score: {self.model.score(self.X_train, self.y_train)}')
+    print(f'Test score: {self.model.score(self.X_test, self.y_test)}')
+    print('-' * 80 + '\n')
 
+  def get_predictions(self):
+    """Run the model on the entire dataset."""
+    X_pred = self.__class__.data.drop(columns=['latitude', 'longitude', 'mp_score',
+                                               'is_accessible', '.geo'])
+    return self.model.predict(X_pred)
 
-
-# Old stuff below.
-def run_knn(k=40):
-  """Predict with k-nearest neighbor regressor."""
-  X_train, y_train, X_test, y_test, X_pred = build_x_y(1)
-  model = KNeighborsRegressor(n_neighbors=k, weights='distance')
-  model.fit(X_train, y_train)
-
-  # Results
-  y_pred = model.predict(X_pred.drop(columns=['latitude', 'longitude', 'mp_score']))
-
-  # Printing and returning
-  print_top_results(X_pred, y_pred, 'knn')
-  return y_pred
-
-
-def run_random_forest():
-  pass
-
-def run_neural_network():
-  pass
-
-def write_results(y):
-  df = pd.read_csv('../data/ee_data.csv')
-  # Dropping columns we don't care about.
-  results = df[['height', 'latitude', 'longitude', 'mp_score', 'pixel_count', '.geo']]
-  predictions = pd.Series(data=y, index=inaccessible.index, name='prediction')
-  results = results.join(predictions)
-  results.drop(columns=['latitude', 'longitude']).to_csv('../data/results.csv',
-    header=True, index=False)
-  results.drop(columns=['.geo', 'pixel_count']).to_csv('../data/simplified_results.csv',
-    header=True, index=False)
-
-
-def print_top_results(X, y, model):
-  """Print the inaccessible cliff formations with the highest predicted score."""
-  X['score'] = y
-  X.height *= 1000
-  X.sort_values(by='score', ascending=False, inplace=True)
-  X = X[['latitude', 'longitude', 'height', 'mp_score', 'score']]
-
-  print('Top 20 results from {} prediction.\n'.format(model))
-  print(X[:20].to_string(index=False))
-  print('\n' + '_' * 80)
-
+  def plot_feature_importance(self):
+    """Plot feature importance of a tree method."""
+    if self.name not in ['tree', 'forest', 'xgb']:
+      raise NotImplementedError('Only implemented for tree models.')
+    n_features = self.X_train.shape[1]
+    plt.barh(range(n_features), self.model.feature_importances_, align='center')
+    plt.yticks(np.arange(n_features), self.X_train.columns)
+    plt.xlabel('Feature importance')
+    plt.ylabel('Feature')
+    plt.ylim(-1, 16)
+    plt.show()
 
 
 if __name__ == '__main__':
-  y_pred = run_xgb()
-  write_results(y_pred)
-  # run_linear()
-  # run_logistic()
-  # run_xgb()
-  # run_knn()
+  #ran = run_all()
+  #ran.to_csv('../data/simplified_results.csv', header=True, index=False)
+  results = Model.data[['latitude', 'longitude', 'height', 'mp_score']].copy()
+  results.height *= 1000
+  for model_name in Model.models:
+    parameters = {}
+    if model_name in ['forest', 'xgb']:
+      parameters = {'n_estimators': 200, 'n_jobs': -1}
+    m = Model(model_name, parameters)
+    m.train()
+    m.print_score()
+    results[model_name + '_score'] = m.get_predictions()
+  results['summary_score'] = results.forest_score + results.xgb_score
+  results.sort_values(by='summary_score', ascending=False, inplace=True)
+  results = results[results.mp_score == 0]  # omitting what is already known!
+  print(results.drop(columns=['ridge_score', 'lasso_score']).head(50))  # dropping bad models
