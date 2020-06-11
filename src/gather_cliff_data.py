@@ -114,18 +114,16 @@ cliffs = cliffs.map(get_data)
 # Exporting intermediate results to drive for local download
 task1 = ee.batch.Export.table.toDrive(
     collection=cliffs,
-    description='exporting big wall data to drive',
+    description='exporting cliff data to drive',
     fileFormat='CSV',
     folder='earth-engine',
-    fileNamePrefix='ee_data',
-)
+    fileNamePrefix='cliff_data')
 
 # Exporting intermediate results as asset to investigate in code editor.
 task2 = ee.batch.Export.table.toAsset(
     collection=cliffs,
-    description='exporting big wall data as asset',
-    assetId='users/zebengberg/big_walls/ee_data'
-)
+    description='exporting cliff data as asset',
+    assetId='users/zebengberg/big_walls/cliff_data')
 
 task1.start()
 task2.start()
