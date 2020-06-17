@@ -29,7 +29,7 @@ class Model():
       self.model = self.__class__.models[name]
     else:
       raise TypeError(f'Unknown model! The only known models are: { self.__class__.models.keys()}')
-    if parameters:
+    if params:
       self.model.set_params(**params)  # may throw error if keyword not viable
 
   def set_train_test(self, train_size=0.9):
@@ -41,6 +41,7 @@ class Model():
     y = self.__class__.accessible.mp_score
     mask = np.random.rand(len(X)) < train_size
     X_train, X_test, y_train, y_test = X[mask], X[~mask], y[mask], y[~mask]
+    return X_train, X_test, y_train, y_test
 
     # Discretizing the continuous target variable mp_score to create 10 integer classes.
     y_train_discretized = np.ceil(10 * y_train).astype('int32')
@@ -85,7 +86,7 @@ class Model():
     plt.yticks(np.arange(n_features), self.X_train.columns)
     plt.xlabel('Feature importance')
     plt.ylabel('Feature')
-    plt.ylim(-1, 16)
+    plt.ylim(-1, n_features)
     plt.show()
 
 

@@ -76,7 +76,7 @@ def join_data(mp, cliffs):
       description='joined cliffs',
       fileFormat='CSV',
       folder='earth-engine',
-      fileNamePrefix='ee_joined')
+      fileNamePrefix='cliff_joined')
 
   task1.start()
   task2.start()
@@ -84,6 +84,6 @@ def join_data(mp, cliffs):
 
 
 if __name__ == '__main__':
-  mp_data = ee.FeatureCollection('user/zebengberg/big_walls/mp_data')
+  mp_data = ee.FeatureCollection('users/zebengberg/big_walls/mp_data')
   cliffs_data = ee.FeatureCollection('users/zebengberg/big_walls/cliff_data')
   join_data(mp_data, cliffs_data)
