@@ -4,9 +4,10 @@ import matplotlib.pyplot as plt
 from xgboost import XGBRegressor
 from sklearn.linear_model import LinearRegression, Ridge, Lasso
 from sklearn.neighbors import KNeighborsRegressor
-from imblearn.over_sampling import RandomOverSampler #, SMOTE, SVMSMOTE, ADASYN
+# from imblearn.over_sampling import RandomOverSampler #, SMOTE, SVMSMOTE, ADASYN
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import RandomizedSearchCV, GridSearchCV
 
 
 class Model():
@@ -43,18 +44,18 @@ class Model():
     X_train, X_test, y_train, y_test = X[mask], X[~mask], y[mask], y[~mask]
     return X_train, X_test, y_train, y_test
 
-    # Discretizing the continuous target variable mp_score to create 10 integer classes.
-    y_train_discretized = np.ceil(10 * y_train).astype('int32')
+    # # Discretizing the continuous target variable mp_score to create 10 integer classes.
+    # y_train_discretized = np.ceil(10 * y_train).astype('int32')
 
-    # Grabbing an equal number of samples from each class
-    model = RandomOverSampler()
-    X_train, _ = model.fit_resample(X_train, y_train_discretized)
+    # # Grabbing an equal number of samples from each class
+    # model = RandomOverSampler()
+    # X_train, _ = model.fit_resample(X_train, y_train_discretized)
 
-    # Back to the continuous targets which were kept in X.
-    indices = model.sample_indices_
-    y_train = y.iloc[indices]
+    # # Back to the continuous targets which were kept in X.
+    # indices = model.sample_indices_
+    # y_train = y.iloc[indices]
 
-    return X_train, X_test, y_train, y_test
+    # return X_train, X_test, y_train, y_test
 
 
 
@@ -90,20 +91,63 @@ class Model():
     plt.show()
 
 
+  def test_random_hyperparameters(self):
+    """Use cross validation method to run model on various choices of hyperparameters."""
+    forest_grid = {'n_estimators': [100, 200],
+                   'max_features': ['auto', 'sqrt'],
+                   'max_depth': [4, 5, 6, 7, 8, 9, None],
+                   'min_samples_split': [2, 4, 8],
+                   'min_samples_leaf': [1, 2, 4],
+                   'bootstrap': [True, False]}
+
+    lasso_grid = {'alpha': [0.001, 0.01, 0.1, 1, 10, 100]}
+
+    ridge_grid = {'alpha': [0.001, 0.01, 0.1, 1, 10, 100]}
+
+    knn_grid = {'n_neighbors': [2, 4, 8, 16, 32, 64],
+                'p': [1, 1.5, 2, 2.5]}
+
+    tree_grid = {'max_features': ['auto', 'sqrt'],
+                 'max_depth': [4, 5, 6, 7, 8, 9, None],
+                 'min_samples_split': [2, 4, 8],
+                 'min_samples_leaf': [1, 2, 4]}
+
+    xgb_grid = {}
+
+    random_grids = {'linear': None,
+                   'ridge': ridge_grid,
+                   'lasso': lasso_grid,
+                   'knn': knn_grid,
+                   'tree': tree_grid,
+                   'forest': forest_grid,
+                   'xgb': xgb_grid}
+    random_grid = random_grids[self.name]
+
+    # Random search of parameters using 5 fold cross validation and 100 random
+    # combinations from the random_grid.
+    rs = RandomizedSearchCV(estimator=self.model, param_distributions=random_grid,
+                            n_iter=100, cv=4, verbose=2, n_jobs=-1)
+    rs.fit(self.X_train, self.y_train)
+    print(rs.best_params_)
+
+
+
 if __name__ == '__main__':
   #ran = run_all()
   #ran.to_csv('../data/simplified_results.csv', header=True, index=False)
-  results = Model.data[['latitude', 'longitude', 'height', 'mp_score']].copy()
-  results.height *= 1000
-  for model_name in Model.models:
-    parameters = {}
-    if model_name in ['forest', 'xgb']:
-      parameters = {'n_estimators': 200, 'n_jobs': -1}
-    m = Model(model_name, parameters)
-    m.train()
-    m.print_score()
-    results[model_name + '_score'] = m.get_predictions()
-  results['summary_score'] = results.forest_score + results.xgb_score
-  results.sort_values(by='summary_score', ascending=False, inplace=True)
-  results = results[results.mp_score == 0]  # omitting what is already known!
-  print(results.drop(columns=['ridge_score', 'lasso_score']).head(50))  # dropping bad models
+  # results = Model.data[['latitude', 'longitude', 'height', 'mp_score']].copy()
+  # results.height *= 1000
+  # for model_name in Model.models:
+  #   parameters = {}
+  #   if model_name in ['forest', 'xgb']:
+  #     parameters = {'n_estimators': 200, 'n_jobs': -1}
+  #   m = Model(model_name, parameters)
+  #   m.train()
+  #   m.print_score()
+  #   results[model_name + '_score'] = m.get_predictions()
+  # results['summary_score'] = results.forest_score + results.xgb_score
+  # results.sort_values(by='summary_score', ascending=False, inplace=True)
+  # results = results[results.mp_score == 0]  # omitting what is already known!
+  # print(results.drop(columns=['ridge_score', 'lasso_score']).head(50))  # dropping bad models
+  m = Model('forest')
+  m.test_random_hyperparameters()
