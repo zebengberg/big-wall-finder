@@ -7,29 +7,30 @@ from sklearn.neighbors import KNeighborsRegressor
 # from imblearn.over_sampling import RandomOverSampler #, SMOTE, SVMSMOTE, ADASYN
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import RandomizedSearchCV, GridSearchCV
+from sklearn.model_selection import RandomizedSearchCV
 
 
 class Model():
   # static variables
   data = pd.read_csv('../data/merged_data.csv')
   accessible = data[data.is_accessible]
-  models = {'linear': LinearRegression(),
-            'ridge': Ridge(),
-            'lasso': Lasso(),
-            'knn': KNeighborsRegressor(),
-            'tree': DecisionTreeRegressor(),
-            'forest': RandomForestRegressor(),
-            'xgb': XGBRegressor()}
 
   def __init__(self, name, params=None):
     self.name = name
     self.X_train, self.X_test, self.y_train, self.y_test = self.set_train_test()
 
-    if name in self.__class__.models:
-      self.model = self.__class__.models[name]
+    models = {'linear': LinearRegression(),
+              'ridge': Ridge(),
+              'lasso': Lasso(),
+              'knn': KNeighborsRegressor(),
+              'tree': DecisionTreeRegressor(),
+              'forest': RandomForestRegressor(),
+              'xgb': XGBRegressor()}
+
+    if name in models:
+      self.model = models[name]
     else:
-      raise TypeError(f'Unknown model! The only known models are: { self.__class__.models.keys()}')
+      raise TypeError(f'Unknown model! The only known models are: {models.keys()}')
     if params:
       self.model.set_params(**params)  # may throw error if keyword not viable
 
@@ -91,13 +92,13 @@ class Model():
     plt.show()
 
 
-  def test_random_hyperparameters(self):
+  def test_random_hyperparameters(self, n_iter=1000, n_folds=5):
     """Use cross validation method to run model on various choices of hyperparameters."""
     forest_grid = {'n_estimators': [100, 200],
                    'max_features': ['auto', 'sqrt'],
                    'max_depth': [4, 5, 6, 7, 8, 9, None],
-                   'min_samples_split': [2, 4, 8],
-                   'min_samples_leaf': [1, 2, 4],
+                   'min_samples_split': [2, 4, 8, 16],
+                   'min_samples_leaf': [1, 2, 4, 6],
                    'bootstrap': [True, False]}
 
     lasso_grid = {'alpha': [0.001, 0.01, 0.1, 1, 10, 100]}
@@ -112,24 +113,43 @@ class Model():
                  'min_samples_split': [2, 4, 8],
                  'min_samples_leaf': [1, 2, 4]}
 
-    xgb_grid = {}
+    xgb_grid = {'max_depth': [6, 7, 8, 9, 10, None],
+                'min_child_weight': [1, 2, 4, 6]}
 
     random_grids = {'linear': None,
-                   'ridge': ridge_grid,
-                   'lasso': lasso_grid,
-                   'knn': knn_grid,
-                   'tree': tree_grid,
-                   'forest': forest_grid,
-                   'xgb': xgb_grid}
+                    'ridge': ridge_grid,
+                    'lasso': lasso_grid,
+                    'knn': knn_grid,
+                    'tree': tree_grid,
+                    'forest': forest_grid,
+                    'xgb': xgb_grid}
     random_grid = random_grids[self.name]
 
     # Random search of parameters using 5 fold cross validation and 100 random
     # combinations from the random_grid.
     rs = RandomizedSearchCV(estimator=self.model, param_distributions=random_grid,
-                            n_iter=100, cv=4, verbose=2, n_jobs=-1)
+                            n_iter=n_iter, cv=n_folds, verbose=2, n_jobs=-1)
     rs.fit(self.X_train, self.y_train)
-    print(rs.best_params_)
+    return rs.best_params_
 
+  def print_evaluate_hyperparameters(self):
+    """Evaluate best hyperparameters from cross validation random search."""
+    params = self.test_random_hyperparameters()
+    self.model.set_params(**params)
+    self.train()
+    print('#' * 80)
+    print(f'{self.name} with hyperparameters:')
+    print(self.model.get_params())
+    self.print_score()
+    print('#' * 80)
+
+    # Training with default parameters
+    other = Model(self.name)
+    other.train()
+    print(f'{other.name} with hyperparameters:')
+    print(other.model.get_params())
+    other.print_score()
+    print('#' * 80)
 
 
 if __name__ == '__main__':
@@ -150,4 +170,4 @@ if __name__ == '__main__':
   # results = results[results.mp_score == 0]  # omitting what is already known!
   # print(results.drop(columns=['ridge_score', 'lasso_score']).head(50))  # dropping bad models
   m = Model('forest')
-  m.test_random_hyperparameters()
+  m.print_evaluate_hyperparameters()
