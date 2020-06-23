@@ -1,5 +1,7 @@
 import pandas as pd
 import numpy as np
+import json
+from os import path
 import matplotlib.pyplot as plt
 from xgboost import XGBRegressor
 from sklearn.linear_model import LinearRegression, Ridge, Lasso
@@ -11,31 +13,52 @@ from sklearn.model_selection import RandomizedSearchCV
 
 
 class Model():
-  # static variables
+  # Static variables and class methods
   data = pd.read_csv('../data/merged_data.csv')
   accessible = data[data.is_accessible]
+
+  models = {'linear': LinearRegression,
+            'ridge': Ridge,
+            'lasso': Lasso,
+            'knn': KNeighborsRegressor,
+            'tree': DecisionTreeRegressor,
+            'forest': RandomForestRegressor,
+            'xgb': XGBRegressor}
+
+  if path.exists('best_params.json'):
+    with open('best_params.json') as f:
+      best_params = json.load(f)
+
+  @classmethod
+  def tune_all_hyperparameters(cls, save=True):
+    """Search over random hyperparameters for each model and save best."""
+    best_params = {}
+    for model_name in cls.models:
+      m = cls(model_name)
+      best_params[model_name] = m.test_random_hyperparameters()
+      m.print_evaluate_hyperparameters()
+    if save:
+      with open('best_params.json', 'w') as f:
+        json.dump(best_params, f)
+
+    return best_params
+
 
   def __init__(self, name, params=None):
     self.name = name
     self.X_train, self.X_test, self.y_train, self.y_test = self.set_train_test()
 
-    models = {'linear': LinearRegression(),
-              'ridge': Ridge(),
-              'lasso': Lasso(),
-              'knn': KNeighborsRegressor(),
-              'tree': DecisionTreeRegressor(),
-              'forest': RandomForestRegressor(),
-              'xgb': XGBRegressor()}
-
-    if name in models:
-      self.model = models[name]
+    if name in self.__class__.models:
+      self.model = self.__class__.models[name]()  # initializing model here
     else:
-      raise TypeError(f'Unknown model! The only known models are: {models.keys()}')
+      raise TypeError(f'Unknown model! The only known models are: {self.__class__.models.keys()}')
     if params:
       self.model.set_params(**params)  # may throw error if keyword not viable
 
-  def set_train_test(self, train_size=0.9):
+  def set_train_test(self, train_size=0.9, balanced=False):
     """Create balanced classes by oversampling."""
+
+    # TODO: create balanced sets
 
     # Creating the train test split.
     X = self.__class__.accessible.drop(columns=['latitude', 'longitude', 'is_accessible',
@@ -92,16 +115,21 @@ class Model():
     plt.show()
 
 
-  def test_random_hyperparameters(self, n_iter=1000, n_folds=5):
-    """Use cross validation method to run model on various choices of hyperparameters."""
-    forest_grid = {'n_estimators': [100, 200],
-                   'max_features': ['auto', 'sqrt'],
-                   'max_depth': [4, 5, 6, 7, 8, 9, None],
-                   'min_samples_split': [2, 4, 8, 16],
+  def test_random_hyperparameters(self, n_iter=100, n_folds=5):
+    """Use cross validation to run model on various choices of hyperparameters."""
+    
+    # Early exit if running linear model; no hyperparameters available.
+    if self.name == 'linear':
+      return None
+
+    forest_grid = {'max_features': ['auto', 'sqrt'],
+                   'max_depth': [4, 5, 6, 7, 8, None],
+                   'min_samples_split': [2, 4, 6, 8],
                    'min_samples_leaf': [1, 2, 4, 6],
                    'bootstrap': [True, False]}
 
-    lasso_grid = {'alpha': [0.001, 0.01, 0.1, 1, 10, 100]}
+    lasso_grid = {'alpha': [0.001, 0.01, 0.1, 1, 10, 100],
+                  'max_iter': [2000]}  # doesn't converge with default value 1000
 
     ridge_grid = {'alpha': [0.001, 0.01, 0.1, 1, 10, 100]}
 
@@ -110,30 +138,38 @@ class Model():
 
     tree_grid = {'max_features': ['auto', 'sqrt'],
                  'max_depth': [4, 5, 6, 7, 8, 9, None],
-                 'min_samples_split': [2, 4, 8],
+                 'min_samples_split': [2, 4, 6],
                  'min_samples_leaf': [1, 2, 4]}
 
     xgb_grid = {'max_depth': [6, 7, 8, 9, 10, None],
-                'min_child_weight': [1, 2, 4, 6]}
+                'min_child_weight': [1, 2, 4, 6],
+                # learning_rate = eta; should increase n_estimators with low eta
+                'learning_rate': [.01, .03, .1, .3],  
+                'subsample': [.7, .8, .9, 1],
+                'colsample_bytree': [.7, .8, .9, 1]}
 
-    random_grids = {'linear': None,
-                    'ridge': ridge_grid,
+    random_grids = {'ridge': ridge_grid,
                     'lasso': lasso_grid,
                     'knn': knn_grid,
                     'tree': tree_grid,
                     'forest': forest_grid,
                     'xgb': xgb_grid}
+
     random_grid = random_grids[self.name]
 
-    # Random search of parameters using 5 fold cross validation and 100 random
-    # combinations from the random_grid.
+    # Random search of hyperparameters chosen uniformly from possibilities above.
     rs = RandomizedSearchCV(estimator=self.model, param_distributions=random_grid,
-                            n_iter=n_iter, cv=n_folds, verbose=2, n_jobs=-1)
+                            n_iter=n_iter, cv=n_folds, verbose=1, n_jobs=-1)
     rs.fit(self.X_train, self.y_train)
     return rs.best_params_
 
   def print_evaluate_hyperparameters(self):
     """Evaluate best hyperparameters from cross validation random search."""
+
+    # Early exit for linear model.
+    if self.name == 'linear':
+      return None
+
     params = self.test_random_hyperparameters()
     self.model.set_params(**params)
     self.train()
@@ -144,7 +180,7 @@ class Model():
     print('#' * 80)
 
     # Training with default parameters
-    other = Model(self.name)
+    other = self.__class__(self.name)
     other.train()
     print(f'{other.name} with hyperparameters:')
     print(other.model.get_params())
@@ -169,5 +205,8 @@ if __name__ == '__main__':
   # results.sort_values(by='summary_score', ascending=False, inplace=True)
   # results = results[results.mp_score == 0]  # omitting what is already known!
   # print(results.drop(columns=['ridge_score', 'lasso_score']).head(50))  # dropping bad models
-  m = Model('forest')
-  m.print_evaluate_hyperparameters()
+  # for model_name in Model.models:
+  #   m = Model(model_name)
+  #   m.print_evaluate_hyperparameters()
+  bp = Model.tune_all_hyperparameters()
+  print(bp)
