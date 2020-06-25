@@ -1,18 +1,27 @@
-import pandas as pd
-import numpy as np
+
+
+
 import json
 from os import path
+import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
 from xgboost import XGBRegressor
 from sklearn.linear_model import LinearRegression, Ridge, Lasso
 from sklearn.neighbors import KNeighborsRegressor
-# from imblearn.over_sampling import RandomOverSampler #, SMOTE, SVMSMOTE, ADASYN
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import RandomizedSearchCV
+from imblearn.over_sampling import RandomOverSampler #, SMOTE, SVMSMOTE, ADASYN
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense
+from tensorflow.keras.wrappers.scikit_learn import KerasRegressor
+
 
 
 class Model():
+  """Apply various ML models on cliff data."""
+
   # Static variables and class methods
   data = pd.read_csv('../data/merged_data.csv')
   accessible = data[data.is_accessible]
@@ -23,11 +32,23 @@ class Model():
             'knn': KNeighborsRegressor,
             'tree': DecisionTreeRegressor,
             'forest': RandomForestRegressor,
-            'xgb': XGBRegressor}
+            'xgb': XGBRegressor,
+            'neural': None}
 
+  best_params = None
   if path.exists('best_params.json'):
     with open('best_params.json') as f:
       best_params = json.load(f)
+
+    # Adding in a few extra "best" parameters
+    best_params['forest']['n_estimators'] = 500
+    best_params['forest']['n_jobs'] = -1
+    best_params['xgb']['n_estimators'] = 500
+    best_params['xgb']['n_jobs'] = -1
+
+    # Putting in temporarily empty 'neural' params
+    best_params['neural'] = {}
+
 
   @classmethod
   def tune_all_hyperparameters(cls, save=True):
@@ -39,7 +60,7 @@ class Model():
       m.print_evaluate_hyperparameters()
     if save:
       with open('best_params.json', 'w') as f:
-        json.dump(best_params, f)
+        json.dump(best_params, f, indent=2)
 
     return best_params
 
@@ -49,16 +70,27 @@ class Model():
     self.X_train, self.X_test, self.y_train, self.y_test = self.set_train_test()
 
     if name in self.__class__.models:
-      self.model = self.__class__.models[name]()  # initializing model here
+      if name == 'neural':
+        # Using vanilla tf.keras model
+        def tf_model():
+          model = Sequential()
+          model.add(Dense(100, input_dim=self.X_train.shape[1], activation='relu'))
+          model.add(Dense(1))
+          model.compile(loss='mean_squared_error', optimizer='adam')
+          return model
+        self.model = KerasRegressor(tf_model)
+
+      else:
+        self.model = self.__class__.models[name]()  # initializing model here
     else:
       raise TypeError(f'Unknown model! The only known models are: {self.__class__.models.keys()}')
     if params:
       self.model.set_params(**params)  # may throw error if keyword not viable
+    elif self.__class__.best_params:
+      self.model.set_params(**self.__class__.best_params[self.name])
 
-  def set_train_test(self, train_size=0.9, balanced=False):
+  def set_train_test(self, train_size=0.9, create_balanced=False):
     """Create balanced classes by oversampling."""
-
-    # TODO: create balanced sets
 
     # Creating the train test split.
     X = self.__class__.accessible.drop(columns=['latitude', 'longitude', 'is_accessible',
@@ -66,21 +98,22 @@ class Model():
     y = self.__class__.accessible.mp_score
     mask = np.random.rand(len(X)) < train_size
     X_train, X_test, y_train, y_test = X[mask], X[~mask], y[mask], y[~mask]
+
+    if not create_balanced:
+      return X_train, X_test, y_train, y_test
+
+    # Discretizing the continuous target variable mp_score to create 10 integer classes.
+    y_train_discretized = np.ceil(10 * y_train).astype('int32')
+
+    # Grabbing an equal number of samples from each class
+    model = RandomOverSampler()
+    X_train, _ = model.fit_resample(X_train, y_train_discretized)
+
+    # Back to the continuous targets which were kept in X.
+    indices = model.sample_indices_
+    y_train = y.iloc[indices]
+
     return X_train, X_test, y_train, y_test
-
-    # # Discretizing the continuous target variable mp_score to create 10 integer classes.
-    # y_train_discretized = np.ceil(10 * y_train).astype('int32')
-
-    # # Grabbing an equal number of samples from each class
-    # model = RandomOverSampler()
-    # X_train, _ = model.fit_resample(X_train, y_train_discretized)
-
-    # # Back to the continuous targets which were kept in X.
-    # indices = model.sample_indices_
-    # y_train = y.iloc[indices]
-
-    # return X_train, X_test, y_train, y_test
-
 
 
   def train(self):
@@ -117,36 +150,37 @@ class Model():
 
   def test_random_hyperparameters(self, n_iter=100, n_folds=5):
     """Use cross validation to run model on various choices of hyperparameters."""
-    
+
     # Early exit if running linear model; no hyperparameters available.
     if self.name == 'linear':
-      return None
+      return {}
 
     forest_grid = {'max_features': ['auto', 'sqrt'],
-                   'max_depth': [4, 5, 6, 7, 8, None],
-                   'min_samples_split': [2, 4, 6, 8],
-                   'min_samples_leaf': [1, 2, 4, 6],
+                   'max_depth': [4, 5, 6, 7, 8, 9, 10, None],
+                   'min_samples_split': [2, 3, 4, 5],
+                   'min_samples_leaf': [1, 2, 3, 4, 5],
                    'bootstrap': [True, False]}
 
-    lasso_grid = {'alpha': [0.001, 0.01, 0.1, 1, 10, 100],
+    lasso_grid = {'alpha': [.0001, .0002, .0005, .001, .002, .005, .01, .1, 1, 10],
                   'max_iter': [2000]}  # doesn't converge with default value 1000
 
-    ridge_grid = {'alpha': [0.001, 0.01, 0.1, 1, 10, 100]}
+    ridge_grid = {'alpha': [0.1, 1, 2, 5, 10, 20, 50, 100]}
 
-    knn_grid = {'n_neighbors': [2, 4, 8, 16, 32, 64],
+    knn_grid = {'n_neighbors': [8, 16, 32, 64, 128],
                 'p': [1, 1.5, 2, 2.5]}
 
-    tree_grid = {'max_features': ['auto', 'sqrt'],
-                 'max_depth': [4, 5, 6, 7, 8, 9, None],
-                 'min_samples_split': [2, 4, 6],
-                 'min_samples_leaf': [1, 2, 4]}
+    tree_grid = {'ccp_alpha': [0, .005, .01, .02, .05, .1],
+                 'max_features': ['auto', 'sqrt'],
+                 'max_depth': [3, 4, 5, 6, 7, None],
+                 'min_samples_split': [2, 3, 4, 5],
+                 'min_samples_leaf': [1, 2, 3, 4]}
 
-    xgb_grid = {'max_depth': [6, 7, 8, 9, 10, None],
-                'min_child_weight': [1, 2, 4, 6],
+    xgb_grid = {'max_depth': [3, 4, 5, 6, 7, 8, 9, None],
+                'min_child_weight': [1, 2, 4, 6, 8, 10],
                 # learning_rate = eta; should increase n_estimators with low eta
-                'learning_rate': [.01, .03, .1, .3],  
-                'subsample': [.7, .8, .9, 1],
-                'colsample_bytree': [.7, .8, .9, 1]}
+                'learning_rate': [.01, .03, .05, .1, .2],  
+                'subsample': [.7, .75, .8, .85, .9],
+                'colsample_bytree': [.7, .75, .8, .85, .9]}
 
     random_grids = {'ridge': ridge_grid,
                     'lasso': lasso_grid,
@@ -166,26 +200,24 @@ class Model():
   def print_evaluate_hyperparameters(self):
     """Evaluate best hyperparameters from cross validation random search."""
 
-    # Early exit for linear model.
-    if self.name == 'linear':
-      return None
+    # Linear model has no hyperparameters to evaluate.
+    if self.name != 'linear':
+      params = self.test_random_hyperparameters()
+      self.model.set_params(**params)
+      self.train()
+      print('#' * 80)
+      print(f'{self.name} with hyperparameters:')
+      print(self.model.get_params())
+      self.print_score()
+      print('#' * 80)
 
-    params = self.test_random_hyperparameters()
-    self.model.set_params(**params)
-    self.train()
-    print('#' * 80)
-    print(f'{self.name} with hyperparameters:')
-    print(self.model.get_params())
-    self.print_score()
-    print('#' * 80)
-
-    # Training with default parameters
-    other = self.__class__(self.name)
-    other.train()
-    print(f'{other.name} with hyperparameters:')
-    print(other.model.get_params())
-    other.print_score()
-    print('#' * 80)
+      # Training with default parameters
+      other = self.__class__(self.name)
+      other.train()
+      print(f'{other.name} with hyperparameters:')
+      print(other.model.get_params())
+      other.print_score()
+      print('#' * 80)
 
 
 if __name__ == '__main__':
