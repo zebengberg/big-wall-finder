@@ -14,7 +14,7 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import RandomizedSearchCV
 from imblearn.over_sampling import RandomOverSampler #, SMOTE, SVMSMOTE, ADASYN
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense
+from tensorflow.keras.layers import Dense, Dropout
 from tensorflow.keras.wrappers.scikit_learn import KerasRegressor
 
 
@@ -51,12 +51,12 @@ class Model():
 
 
   @classmethod
-  def tune_all_hyperparameters(cls, save=True):
+  def tune_all_hyperparameters(cls, save=True, n_iter=1000):
     """Search over random hyperparameters for each model and save best."""
     best_params = {}
     for model_name in cls.models:
       m = cls(model_name)
-      best_params[model_name] = m.test_random_hyperparameters()
+      best_params[model_name] = m.test_random_hyperparameters(n_iter=n_iter)
       m.print_evaluate_hyperparameters()
     if save:
       with open('best_params.json', 'w') as f:
@@ -72,13 +72,16 @@ class Model():
     if name in self.__class__.models:
       if name == 'neural':
         # Using vanilla tf.keras model
-        def tf_model():
+        def build_fn(dropout_rate=0, optimizer='adam', activation='relu',
+                     neurons=100, learn_rate = 0.01):
           model = Sequential()
-          model.add(Dense(100, input_dim=self.X_train.shape[1], activation='relu'))
+          model.add(Dense(neurons, input_dim=self.X_train.shape[1],
+                          activation=activation))
+          model.add(Dropout(dropout_rate))
           model.add(Dense(1))
-          model.compile(loss='mean_squared_error', optimizer='adam')
+          model.compile(loss='mean_squared_error', optimizer=optimizer)
           return model
-        self.model = KerasRegressor(tf_model)
+        self.model = KerasRegressor(build_fn=build_fn, verbose=0)
 
       else:
         self.model = self.__class__.models[name]()  # initializing model here
@@ -148,7 +151,7 @@ class Model():
     plt.show()
 
 
-  def test_random_hyperparameters(self, n_iter=100, n_folds=5):
+  def test_random_hyperparameters(self, n_iter=1000, n_folds=5):
     """Use cross validation to run model on various choices of hyperparameters."""
 
     # Early exit if running linear model; no hyperparameters available.
@@ -162,7 +165,7 @@ class Model():
                    'bootstrap': [True, False]}
 
     lasso_grid = {'alpha': [.0001, .0002, .0005, .001, .002, .005, .01, .1, 1, 10],
-                  'max_iter': [2000]}  # doesn't converge with default value 1000
+                  'max_iter': [5000]}  # doesn't converge with default value 1000
 
     ridge_grid = {'alpha': [0.1, 1, 2, 5, 10, 20, 50, 100]}
 
@@ -182,12 +185,22 @@ class Model():
                 'subsample': [.7, .75, .8, .85, .9],
                 'colsample_bytree': [.7, .75, .8, .85, .9]}
 
+    neural_grid = {'epochs': [10, 30, 100, 300, 1000],
+                   'batch_size': [8, 16, 32, 64],
+                   'learn_rate': [.001, .01, .1, .5],
+                   'dropout_rate': [0, 0.05, 0.1, 0.15, 0.2],
+                   'neurons': [100, 200, 300, 400],
+                   'optimizer': ['sgd', 'rmsprop', 'adam'],
+                   'activation': ['relu', 'tanh']}
+
+
     random_grids = {'ridge': ridge_grid,
                     'lasso': lasso_grid,
                     'knn': knn_grid,
                     'tree': tree_grid,
                     'forest': forest_grid,
-                    'xgb': xgb_grid}
+                    'xgb': xgb_grid,
+                    'neural': neural_grid}
 
     random_grid = random_grids[self.name]
 
@@ -242,3 +255,9 @@ if __name__ == '__main__':
   #   m.print_evaluate_hyperparameters()
   bp = Model.tune_all_hyperparameters()
   print(bp)
+
+
+# TODO: hyperparameters for NN
+# PCA in jupyter
+# Look at strongest model, and engineer more features for it
+# Run a nearest neighbor for yosemite cliffs.
