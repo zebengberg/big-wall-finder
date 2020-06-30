@@ -1,13 +1,12 @@
 """Gather NAIP image data as numpy array for cliff features."""
 
-import numpy as np
 import ee
-ee.Authenticate()
 ee.Initialize()
 
 
 # Importing datasets
 cliffs = ee.FeatureCollection('users/zebengberg/big_walls/cliff_footprints')
+cliffs = cliffs.toList(100_000)
 naip = ee.ImageCollection('USDA/NAIP/DOQQ')
 naip = naip.filter(ee.Filter.date('2010-01-01', '2018-12-31')).mosaic()
 naip = naip.reproject(crs='EPSG:4326', scale=1)
@@ -15,11 +14,12 @@ naip = naip.reproject(crs='EPSG:4326', scale=1)
 
 def extract_image(cliff):
   """Extract NAIP data as array over cliff footprint."""
+  cliff = ee.Feature(cliff)
   footprint = cliff.geometry()
   cliff_image = naip.clip(footprint)
 
   rect = cliff.bounds().geometry()
-  sub_rects = partition_rectangle(rect)
+  sub_rects = partition_rectangle(rect, 400)
   sub_rects = ee.FeatureCollection(sub_rects)
   sub_rects = sub_rects.filterBounds(footprint)
   # At most 2^18 pixels allowed with sampleRectangle method
@@ -29,7 +29,7 @@ def extract_image(cliff):
 
 
 
-def partition_rectangle(rect, PIXEL_DIM=32):
+def partition_rectangle(rect, side_length):
   """Partition rectangle into ee.List of subrectangles."""
 
   # SW, SE, NE corners of rectangle
@@ -46,8 +46,8 @@ def partition_rectangle(rect, PIXEL_DIM=32):
   y = ee.Geometry.LineString([p1, p2])
 
   # Partitioning LineStrings into MultiLineStrings
-  x_cuts = ee.List.sequence(0, dx, PIXEL_DIM)
-  y_cuts = ee.List.sequence(0, dy, PIXEL_DIM)
+  x_cuts = ee.List.sequence(0, dx, side_length)
+  y_cuts = ee.List.sequence(0, dy, side_length)
   x = x.cutLines(x_cuts).coordinates()
   y = y.cutLines(y_cuts).coordinates()
 
@@ -64,10 +64,16 @@ def partition_rectangle(rect, PIXEL_DIM=32):
 
   return x.map(x_map).flatten()
 
+# Running the job.
+cliffs = cliffs.map(extract_image)  # an ee.List of ee.List
+cliffs = cliffs.flatten()
+cliffs = ee.FeatureCollection(cliffs)
 
-
-
-c = ee.Feature(cliffs.first())
-image = extract_image(c)
-image = image.getInfo()
-B = [np.array(i['properties']['B']) for i in image]
+# Exporting results to drive
+task = ee.batch.Export.table.toDrive(
+    collection=cliffs,
+    description='exporting naip data to drive',
+    fileFormat='CSV',
+    folder='earth-engine',
+    fileNamePrefix='naip_data')
+task.start()

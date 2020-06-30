@@ -2,7 +2,7 @@
 
 
 import json
-from os import path
+import os
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -16,6 +16,7 @@ from imblearn.over_sampling import RandomOverSampler #, SMOTE, SVMSMOTE, ADASYN
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout
 from tensorflow.keras.wrappers.scikit_learn import KerasRegressor
+from tensorflow.keras.optimizers import Adam, SGD, RMSprop
 
 
 
@@ -36,7 +37,7 @@ class Model():
             'neural': None}
 
   best_params = None
-  if path.exists('best_params.json'):
+  if os.path.exists('best_params.json'):
     with open('best_params.json') as f:
       best_params = json.load(f)
 
@@ -59,6 +60,8 @@ class Model():
       best_params[model_name] = m.test_random_hyperparameters(n_iter=n_iter)
       m.print_evaluate_hyperparameters()
     if save:
+      if os.path.exists('best_params.json'):
+        os.rename('best_params.json', 'best_params_old.json')
       with open('best_params.json', 'w') as f:
         json.dump(best_params, f, indent=2)
 
@@ -73,13 +76,17 @@ class Model():
       if name == 'neural':
         # Using vanilla tf.keras model
         def build_fn(dropout_rate=0, optimizer='adam', activation='relu',
-                     neurons=100, learn_rate = 0.01):
+                     neurons=100, learning_rate=0.01):
           model = Sequential()
           model.add(Dense(neurons, input_dim=self.X_train.shape[1],
                           activation=activation))
           model.add(Dropout(dropout_rate))
           model.add(Dense(1))
-          model.compile(loss='mean_squared_error', optimizer=optimizer)
+          opt_dict = {'adam': Adam(learning_rate=learning_rate),
+                 'sgd': SGD(learning_rate=learning_rate),
+                 'rmsprop': RMSprop(learning_rate=learning_rate)}
+
+          model.compile(loss='mean_squared_error', optimizer=opt_dict[optimizer])
           return model
         self.model = KerasRegressor(build_fn=build_fn, verbose=0)
 
@@ -151,7 +158,7 @@ class Model():
     plt.show()
 
 
-  def test_random_hyperparameters(self, n_iter=1000, n_folds=5):
+  def test_random_hyperparameters(self, n_iter=1000, n_folds=5, verbose=1):
     """Use cross validation to run model on various choices of hyperparameters."""
 
     # Early exit if running linear model; no hyperparameters available.
@@ -187,7 +194,7 @@ class Model():
 
     neural_grid = {'epochs': [10, 30, 100, 300, 1000],
                    'batch_size': [8, 16, 32, 64],
-                   'learn_rate': [.001, .01, .1, .5],
+                   'learning_rate': [.001, .01, .1, .5],
                    'dropout_rate': [0, 0.05, 0.1, 0.15, 0.2],
                    'neurons': [100, 200, 300, 400],
                    'optimizer': ['sgd', 'rmsprop', 'adam'],
@@ -206,7 +213,7 @@ class Model():
 
     # Random search of hyperparameters chosen uniformly from possibilities above.
     rs = RandomizedSearchCV(estimator=self.model, param_distributions=random_grid,
-                            n_iter=n_iter, cv=n_folds, verbose=1, n_jobs=-1)
+                            n_iter=n_iter, cv=n_folds, verbose=verbose, n_jobs=-1)
     rs.fit(self.X_train, self.y_train)
     return rs.best_params_
 
@@ -253,7 +260,7 @@ if __name__ == '__main__':
   # for model_name in Model.models:
   #   m = Model(model_name)
   #   m.print_evaluate_hyperparameters()
-  bp = Model.tune_all_hyperparameters()
+  bp = Model.tune_all_hyperparameters(n_iter=200)
   print(bp)
 
 
@@ -261,3 +268,4 @@ if __name__ == '__main__':
 # PCA in jupyter
 # Look at strongest model, and engineer more features for it
 # Run a nearest neighbor for yosemite cliffs.
+# Add n_estimators... to forest, xgb
