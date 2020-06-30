@@ -13,3 +13,6 @@ data/
 
 # OS stuff
 .DS_Store
+
+# working files
+src/throwaway.ipynb
