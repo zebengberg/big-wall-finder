@@ -52,12 +52,14 @@ class Model():
 
 
   @classmethod
-  def tune_all_hyperparameters(cls, save=True, n_iter=1000):
+  def tune_all_hyperparameters(cls, n_iter, save=True):
     """Search over random hyperparameters for each model and save best."""
     best_params = {}
     for model_name in cls.models:
       m = cls(model_name)
-      best_params[model_name] = m.test_random_hyperparameters(n_iter=n_iter)
+      params = m.test_random_hyperparameters(n_iter=n_iter)
+      best_params[model_name] = params
+      m.model.set_params(**params)
       m.print_evaluate_hyperparameters()
     if save:
       if os.path.exists('best_params.json'):
@@ -83,12 +85,12 @@ class Model():
           model.add(Dropout(dropout_rate))
           model.add(Dense(1))
           opt_dict = {'adam': Adam(learning_rate=learning_rate),
-                 'sgd': SGD(learning_rate=learning_rate),
-                 'rmsprop': RMSprop(learning_rate=learning_rate)}
+                      'sgd': SGD(learning_rate=learning_rate),
+                      'rmsprop': RMSprop(learning_rate=learning_rate)}
 
           model.compile(loss='mean_squared_error', optimizer=opt_dict[optimizer])
           return model
-        self.model = KerasRegressor(build_fn=build_fn, verbose=0)
+        self.model = KerasRegressor(build_fn=build_fn, verbose=1)
 
       else:
         self.model = self.__class__.models[name]()  # initializing model here
@@ -158,7 +160,7 @@ class Model():
     plt.show()
 
 
-  def test_random_hyperparameters(self, n_iter=1000, n_folds=5, verbose=1):
+  def test_random_hyperparameters(self, n_iter, n_folds=5, verbose=1):
     """Use cross validation to run model on various choices of hyperparameters."""
 
     # Early exit if running linear model; no hyperparameters available.
@@ -172,7 +174,8 @@ class Model():
                    'bootstrap': [True, False]}
 
     lasso_grid = {'alpha': [.0001, .0002, .0005, .001, .002, .005, .01, .1, 1, 10],
-                  'max_iter': [5000]}  # doesn't converge with default value 1000
+                  'tol': [2.5],
+                  'max_iter': [5000]}  # doesn't converge with default values
 
     ridge_grid = {'alpha': [0.1, 1, 2, 5, 10, 20, 50, 100]}
 
@@ -213,7 +216,7 @@ class Model():
 
     # Random search of hyperparameters chosen uniformly from possibilities above.
     rs = RandomizedSearchCV(estimator=self.model, param_distributions=random_grid,
-                            n_iter=n_iter, cv=n_folds, verbose=verbose, n_jobs=-1)
+                            n_iter=n_iter, cv=n_folds, verbose=verbose, n_jobs=2)
     rs.fit(self.X_train, self.y_train)
     return rs.best_params_
 
@@ -222,11 +225,9 @@ class Model():
 
     # Linear model has no hyperparameters to evaluate.
     if self.name != 'linear':
-      params = self.test_random_hyperparameters()
-      self.model.set_params(**params)
       self.train()
       print('#' * 80)
-      print(f'{self.name} with hyperparameters:')
+      print(f'{self.name} with best hyperparameters:')
       print(self.model.get_params())
       self.print_score()
       print('#' * 80)
@@ -234,7 +235,7 @@ class Model():
       # Training with default parameters
       other = self.__class__(self.name)
       other.train()
-      print(f'{other.name} with hyperparameters:')
+      print(f'{other.name} with default hyperparameters:')
       print(other.model.get_params())
       other.print_score()
       print('#' * 80)
@@ -269,3 +270,5 @@ if __name__ == '__main__':
 # Look at strongest model, and engineer more features for it
 # Run a nearest neighbor for yosemite cliffs.
 # Add n_estimators... to forest, xgb
+# don't use all accessible cliffs to train; only use those with MP entries
+

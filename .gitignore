@@ -1,9 +1,10 @@
 # editor stuff
 .vscode/
 .ipynb_checkpoints/
+pyrightconfig.json
 
 # build stuff
-src/__pycache__
+__pycache__
 
 # cloned repo containing scraped data as JSON
 mountain-project-scraper/
@@ -16,3 +17,4 @@ data/
 
 # working files
 src/throwaway.ipynb
+src/best_params.json
