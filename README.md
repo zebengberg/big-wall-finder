@@ -1,12 +1,12 @@
 # big-wall-finder
 
->Apply machine learning to geographic data to discover big walls.
+> Apply ML to GIS to discover big walls.
 
 [View the results here.]()
 
 ## Motivation
 
-Stumbling upon an undiscovered boulder field or coming across an uncharted cliff is a source of great inspiration for rock climbers: It is exciting to climb a rock formation that has never previously been climbed. Some climbers consider this act of "rock-pioneering" as the pinnacle of their craft. Climbers who explore, prepare, and establish new climbing routes are known within the community as *route developers*. These developers spend months or years of their lives combing through under-explored terrain that might lend itself to rock climbing.
+Stumbling upon an undiscovered boulder field or coming across an uncharted cliff is a source of great inspiration for rock climbers: It is exciting to climb a rock formation that has never previously been climbed. Some climbers consider this act of "rock-pioneering" as the pinnacle of their craft. Climbers who explore, prepare, and establish new climbing routes are known within the community as _route developers_. These developers spend months or years of their lives combing through under-explored terrain that might lend itself to rock climbing.
 
 This project attempts to leverage geographic data to help identify terrain in the continental United States which may be of interest to route developers. In particular, this project uses elevation, geologic, and satellite data, along with user-generated content, to predict which unexplored terrain has potential for climbing.
 
@@ -15,7 +15,7 @@ This project attempts to leverage geographic data to help identify terrain in th
 At a high-level, this project:
 
 1. Analyzes elevation data to identify cliff-like formations.
-1. Extracts geographic *features* for each discovered cliff, such as geologic and satellite data.
+1. Extracts geographic _features_ for each discovered cliff, such as geologic and satellite data.
 1. Extracts user-generated rock climbing data from the collaborative online guidebook [Mountain Project](https://www.mountainproject.com/).
 1. Applies machine learning algorithms to model the rock climbing potential of a cliff based on the extracted data.
 1. Predicts which unexplored cliffs have the best potential for rock climbing.
@@ -39,8 +39,7 @@ Languages, APIs, and libraries include:
 Datasets include:
 
 - [USGS National Elevation Dataset 1/3 arc-second](https://developers.google.com/earth-engine/datasets/catalog/USGS_NED)
-- [US Lithology](https://developers.google.com/earth-engine/datasets/catalog/CSP_ERGo_1_0_US_lithology
-)
+- [US Lithology](https://developers.google.com/earth-engine/datasets/catalog/CSP_ERGo_1_0_US_lithology)
 - [Landsat 8](https://developers.google.com/earth-engine/datasets/catalog/landsat-8)
 - [Mountain Project Route Database](https://www.mountainproject.com/route-guide)
 
@@ -64,16 +63,16 @@ Because we are combining data from several different sources, the data pipeline 
 
 ### Cliff-like formations
 
-We start with elevation data to identify connected regions of steep terrain. Elevation data is an example of *raster* object: it is comprised of a huge number of pixels organized by some grid-like geometry.
+We start with elevation data to identify connected regions of steep terrain. Elevation data is an example of _raster_ object: it is comprised of a huge number of pixels organized by some grid-like geometry.
 
-To find steep terrain, we set two thresholds: a height threshold and a slope threshold. A *cliff-like formation* is defined by an 8-connected region in which
+To find steep terrain, we set two thresholds: a height threshold and a slope threshold. A _cliff-like formation_ is defined by an 8-connected region in which
 
 - all pixels within the region have slope at least as large as the slope threshold, and
 - the total elevation change of the region is at least as large as the height threshold.
 
 These cliff-like formations (CLFs) are the central objects of study in this project. Each CLF can be "vectorized" and extracted as a GeoJSON Polygon object.
 
-The collection of CLFs will include any sufficiently tall and sufficiently steep cliff of interest to rock climbers. That said, the overwhelming majority of CLFs found will be *false positives*: climbers would never dream of venturing into these regions. In addition to containing the best big walls of Yosemite Valley, CLFs include steep unconsolidated scree fields, loose chossy sandstone layers similar to those in the Grand Canyon, jagged exfoliating alpine spires, and other weird anomalies arising from noise in the data.
+The collection of CLFs will include any sufficiently tall and sufficiently steep cliff of interest to rock climbers. That said, the overwhelming majority of CLFs found will be _false positives_: climbers would never dream of venturing into these regions. In addition to containing the best big walls of Yosemite Valley, CLFs include steep unconsolidated scree fields, loose chossy sandstone layers similar to those in the Grand Canyon, jagged exfoliating alpine spires, and other weird anomalies arising from noise in the data.
 
 ### Extracting features from each CLF
 
@@ -97,7 +96,7 @@ To distinguish between CLFs which have rock climbing potential from those which 
 
 Choosing to extract this particular collection of features was informed by exploring the lithology-values of CLFs and by emulating the process by which geologists [classify geologic formations](https://www.arcgis.com/home/item.html?id=9f9d2f7b6460497c9cbb9548d4ec0bc8) with Landsat 8 data.
 
-In addition, for each CLF we calculate a *score* based on user-generated content on Mountain Project. This score is computed by taking a weighted sum of the number of routes and the number of page-views of those routes in a neighborhood of the CLF. The score provides a measure of rock-climbing quality: we expect CLFs with a high score to have quality climbing. CLFs that are not in close proximity with any Mountain Project entry receive a score of zero.
+In addition, for each CLF we calculate a _score_ based on user-generated content on Mountain Project. This score is computed by taking a weighted sum of the number of routes and the number of page-views of those routes in a neighborhood of the CLF. The score provides a measure of rock-climbing quality: we expect CLFs with a high score to have quality climbing. CLFs that are not in close proximity with any Mountain Project entry receive a score of zero.
 
 We consider two situations in which a CLF has no presence on Mountain Project:
 
@@ -108,7 +107,7 @@ We consider two situations in which a CLF has no presence on Mountain Project:
 
 We want to consider those CLFs that have been explored by climbers. Any CLF with a Mountain Project entry has been explored. In addition, we make the assumption that any CLF sufficiently close to a major Mountain Project climbing area has been explored. We also assume that any CLF close to a population center and a road has been explored.
 
-In more detail, we call a CLF *accessible* if is within some distance threshold of a Mountain Project area or if it is sufficiently close to a road and a large population center. The precise threshold for closeness is unimportant at the moment, and can be fine-tuned later on. We make the assumption that any accessible CLF has already been explored for climbing. Therefore, an accessible CLF not present on Mountain Project has no potential for climbing. With this assumption in place, the score derived from Mountain Project data gives a perfect measure of the quality of accessible CLFs.
+In more detail, we call a CLF _accessible_ if is within some distance threshold of a Mountain Project area or if it is sufficiently close to a road and a large population center. The precise threshold for closeness is unimportant at the moment, and can be fine-tuned later on. We make the assumption that any accessible CLF has already been explored for climbing. Therefore, an accessible CLF not present on Mountain Project has no potential for climbing. With this assumption in place, the score derived from Mountain Project data gives a perfect measure of the quality of accessible CLFs.
 
 For each accessible CLF, let X be the aforementioned geographic data pertaining to the CLF, and let y be the score of the CLF. We now have a machine learning problem: We seek to approximate the function which associates X to y.
 
