@@ -1,20 +1,16 @@
-# editor stuff
 .vscode/
 .ipynb_checkpoints/
 pyrightconfig.json
-
-# build stuff
 __pycache__
+.DS_Store
 
 # cloned repo containing scraped data as JSON
 mountain-project-scraper/
 
-# files too large at the moment
+# data
 data/
+yosemite_shards/
 
-# OS stuff
-.DS_Store
-
-# working files
-src/throwaway.ipynb
-src/best_params.json
+# working stuff
+*.ipynb
+best_params.json
