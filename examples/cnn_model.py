@@ -32,8 +32,7 @@ def convert_to_tuple(inputs):
   slope = inputs.get('slope') / 90
   sin_aspect = tf.math.sin(inputs.get('aspect') / 360 * 2 * 3.14159)
   cos_aspect = tf.math.cos(inputs.get('aspect') / 360 * 2 * 3.14159)
-  #target_list = [inputs.get(key) for key in FEATURES[4:]]
-  return stacked, [slope, sin_aspect, cos_aspect]
+  return stacked, [slope, cos_aspect, sin_aspect]
 
 
 def build_dataset(arg: str):
@@ -89,10 +88,17 @@ def build_model():
   return model
 
 
-if __name__ == '__main__':
+def main():
   train_dataset = build_dataset('train')
   eval_dataset = build_dataset('eval')
   model = build_model()
   print(model.summary())
-  train_history = model.fit(train_dataset, epochs=10)
-  eval_history = model.evaluate(eval_dataset)
+  history = model.fit(
+      train_dataset,
+      epochs=10,
+      validation_data=eval_dataset,
+  )
+
+
+if __name__ == '__main__':
+  main()
