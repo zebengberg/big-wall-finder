@@ -1,8 +1,4 @@
-"""Split up the western US into small rectangles. Each rectangle is searched for
-big walls. For each big wall found, data is collected. Results are exported to
-google drive. Use small rectangle to split bigger region into batches; this
-avoids error (Too many pixels in region) in calling reduceToVector method.
-"""
+"""Determine regions of steep terrain in the western US."""
 
 import ee
 from big_wall_finder import definitions
@@ -122,8 +118,8 @@ def set_slope(feature):
   return feature.set(percentiles)
 
 
-def gather():
-  """RUn the main job."""
+def main():
+  """Run the main job."""
   rectangles = build_rectangles()
   results = rectangles.map(get_cliffs, True)  # dropping nulls
   results = results.flatten()  # flattening list of rectangles
@@ -142,7 +138,7 @@ def gather():
   task2 = ee.batch.Export.table.toAsset(
       collection=results,
       description='exporting big wall data as asset',
-      assetId=definitions.EE_ASSET_DIR + '/cliff_footprints'
+      assetId=definitions.EE_CLIFF_FOOTPRINTS
   )
 
   # call ee.batch.Task.list() to see current status of exports

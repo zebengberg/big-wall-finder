@@ -20,7 +20,11 @@ MP_DATA_PATH = os.path.join(DATA_DIR, 'mp_data.csv')
 STEEP_THRESHOLD = 70  # degrees
 HEIGHT_THRESHOLD = 50  # meters
 
+NAIP_KERNEL_SIZE = 8  # 1m pixels
+
 EE_ASSET_DIR = ee.data.getAssetRoots()[0]['id'] + '/big_wall_data'
+EE_CLIFF_FOOTPRINTS = EE_ASSET_DIR + '/cliff_footprints'
+EE_CLIFFS = EE_ASSET_DIR + '/cliff_data'
 
 
 def get_ee_assets():

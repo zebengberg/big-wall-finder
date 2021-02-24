@@ -41,7 +41,7 @@ eval_geometry = ee.Geometry.MultiPolygon(eval_rectangles)
 
 naip = ee.ImageCollection('USDA/NAIP/DOQQ')
 naip = naip.filterBounds(yosemite)
-naip = naip.filter(ee.Filter.date('2018-01-01', '2020-12-31'))
+naip = naip.filterDate('2018-01-01')
 # at this point, the ImageCollection contains a single image
 naip = naip.max()  # grabbing that single image
 
