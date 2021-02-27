@@ -11,6 +11,7 @@ mountain-project-scraper/
 # data
 data/
 yosemite_shards/
+*.tfrecord.gz
 
 # working stuff
 *.ipynb

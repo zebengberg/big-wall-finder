@@ -1,7 +1,9 @@
 """For each cliff, extract samples of NAIP data."""
 
-from big_wall_finder import definitions
+
+from tqdm import trange
 import ee
+from big_wall_finder import definitions
 ee.Initialize()
 
 
@@ -21,12 +23,14 @@ def extract_naip(cliff):
   local_naip = local_naip.toList(3)  # 3 most recent images
 
   # for most cliffs, local_naip.size() == 3
-  n_samples = cliff.area().multiply(0.001).divide(local_naip.size()).ceil()
+  frac = definitions.NAIP_SAMPLE_FRAC
+  n_samples = cliff.area().multiply(frac).divide(local_naip.size())
+  n_samples = n_samples.ceil()  # guarantee at least one sample per cliff
 
   def extract_samples_from_image(image):
     image = ee.Image(image)
     s = image.spectralGradient().rename('S')
-    # image = image.addBands(s)
+    image = image.addBands(s)
     image = image.neighborhoodToArray(kernel)
     sample = image.sample(
         scale=1,
@@ -44,21 +48,11 @@ def extract_naip(cliff):
   return local_naip
 
 
-def extract_naip2(cliff):
-  sample = naip.mosaic().neighborhoodToArray(kernel).sample(
-      region=ee.Feature(cliff).geometry(),
-      scale=1,
-      numPixels=100,
-      geometries=True
-  )
-  return sample.toList(100)
-
-
-def main():
-  """Run the main job."""
+def build_test_data():
+  """Build testing data for test_cliff_naip."""
   footprints = ee.FeatureCollection(definitions.EE_CLIFF_FOOTPRINTS)
-  footprints = footprints.toList(100)
-  footprints = footprints.map(extract_naip2)
+  footprints = footprints.toList(1000)
+  footprints = footprints.map(extract_naip)
   footprints = footprints.flatten()
   footprints = ee.FeatureCollection(footprints)
 
@@ -69,6 +63,32 @@ def main():
       fileFormat='TFRecord'
   )
   task.start()
+
+
+def main():
+  """Run the main job."""
+  footprints = ee.FeatureCollection(definitions.EE_CLIFF_FOOTPRINTS)
+  n_cliffs = footprints.size()
+
+  footprints = footprints.toList(n_cliffs)
+  footprints = footprints.map(extract_naip)
+  footprints = footprints.flatten()
+
+  n_shards = 100
+  step_size = footprints.size().divide(n_shards)
+  for shard in trange(n_shards):
+    start = step_size.multiply(shard).int()
+    stop = step_size.multiply(shard + 1).int()
+    footprints_shard = footprints.slice(start, stop)
+    footprints_shard = ee.FeatureCollection(footprints_shard)
+
+    task = ee.batch.Export.table.toDrive(
+        collection=footprints_shard,
+        folder='naip_shards',
+        description=f'naip_shard_{shard}',  # filename
+        fileFormat='TFRecord'
+    )
+    task.start()
 
 
 if __name__ == '__main__':
