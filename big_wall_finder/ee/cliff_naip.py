@@ -1,4 +1,4 @@
-"""For each cliff, extract samples of NAIP data."""
+"""For each cliff, extract samples of NAIP data. Save NAIP samples in Google Drive."""
 
 
 from tqdm import trange
@@ -16,6 +16,7 @@ weights = ee.List.repeat(ee.List.repeat(1, size), size)
 kernel = ee.Kernel.fixed(size, size, weights)
 
 
+# TODO: Create ee.js demo showing rectangles sampled from cliff
 def extract_naip(cliff):
   """Extract samples of NAIP array from cliff."""
   cliff = ee.Feature(cliff)
@@ -74,7 +75,7 @@ def main():
   footprints = footprints.map(extract_naip)
   footprints = footprints.flatten()
 
-  n_shards = 100
+  n_shards = definitions.N_SHARDS
   step_size = footprints.size().divide(n_shards)
   for shard in trange(n_shards):
     start = step_size.multiply(shard).int()

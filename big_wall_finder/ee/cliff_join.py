@@ -3,87 +3,92 @@ found, determine nearby routes from Mountain Project data. Mountain Project
 route data will eventually be used as a target for modeling.
 """
 
+
 import ee
+from big_wall_finder import definitions
 ee.Initialize()
 
-def join_data(mp, cliffs):
-  """Join cliff and mp data through ee.Join calls."""
 
-  mp = ee.FeatureCollection(mp)
-  cliffs = ee.FeatureCollection(cliffs)
-
-  # Rectangle from gather_ee_data.py used to clip MP data to region of interest.
-  x0, x1 = -125, -102
-  y0, y1 = 31, 49
-  rectangle = ee.Geometry.Rectangle(x0, y0, x1, y1)
-  mp = mp.filterBounds(rectangle)
-
-  # We only care about rock climbing as opposed to bouldering and winter climbing
-  # for the first join.
-  mp_routes = mp.filterMetadata('num_rock_routes', 'greater_than', 0)
-
-  # Giving each cliff an immutable custom index that won't change as individual
-  # cliff Features are moved from one Collection to another. We later use this
-  # within pandas. For some reason, Earth Engine really struggled trying to join
-  # cliffs with mp_targets server-side.
-  cliffs = cliffs.toList(cliffs.size())
-  indices = ee.List.sequence(0, cliffs.size().subtract(1))
-  cliffs = indices.map(lambda i: ee.Feature(cliffs.get(i)).set('custom_index', i))
-  cliffs = ee.FeatureCollection(cliffs)
-
-  # We start by associating each MP area to its closest cliff. If the MP area has
-  # no close cliffs, it is dropped. Our threshold is 300m.
-  dist_filter = ee.Filter.withinDistance(distance=300, leftField='.geo',
-                                         rightField='.geo', maxError=50)
-  join = ee.Join.saveBest(matchKey='closest_cliff', measureKey='distance_to_mp')
-  mp_targets = join.apply(mp_routes, cliffs, dist_filter)
-
-  # Here we pull out the cliff index joined to each MP area.
-  mp_targets = mp_targets.map(lambda f: f.set({
-      'custom_index': ee.Feature(f.get('closest_cliff')).get('custom_index'),
-      'distance_to_mp': ee.Feature(f.get('closest_cliff')).get('distance_to_mp')}))
-
-  # We now use another join to look at MP activity within a larger vicinity of
-  # the cliff. Unlike the first join, here cliffs are primary and mp is secondary.
-  # The geometry settings are different here as well: our distance threshold and
-  # the allowable error are much larger, which results in simplified polygons.
-  # This will be used as a measure of accessibility on the pandas-side of things.
-  def aggregate_vicinity_mp_areas(f):
-    """Extract and aggregate mp data within vicinity of cliff feature."""
-    mp_areas = ee.FeatureCollection(ee.List(f.get('vicinity_mp_areas')))
-    return f.set({
-        'vicinity_num_rock_routes': mp_areas.aggregate_sum('num_rock_routes'),
-        'vicinity_num_views': mp_areas.aggregate_sum('num_views')})
-
-  # Using a threshold of 800m for vicinity cliffs.
-  dist_filter = ee.Filter.withinDistance(distance=800, leftField='.geo',
-                                         rightField='.geo', maxError=200)
-  join = ee.Join.saveAll(matchesKey='vicinity_mp_areas', outer=True)
-  cliffs = join.apply(cliffs, mp, dist_filter)
-  cliffs = cliffs.map(aggregate_vicinity_mp_areas)
+def load_mp_data():
+  """Load and process MP data in earth engine."""
+  mp_data = ee.FeatureCollection(definitions.MP_DATA)
+  rectangle = ee.Geometry.Rectangle(
+      definitions.XMIN,
+      definitions.YMIN,
+      definitions.XMAX,
+      definitions.YMAX
+  )
+  mp_data = mp_data.filterBounds(rectangle)
+  mp_data = mp_data.filterMetadata('n_rock', 'greater_than', 0)
+  return mp_data
 
 
-  # Exporting results to drive for local download
-  task1 = ee.batch.Export.table.toDrive(
-      collection=mp_targets,
-      description='joined mp',
-      fileFormat='CSV',
-      folder='earth-engine',
-      fileNamePrefix='mp_joined')
+def join():
+  """Join MP data to ee cliffs."""
 
-  task2 = ee.batch.Export.table.toDrive(
+  mp_data = load_mp_data()
+  cliffs = ee.FeatureCollection(definitions.EE_CLIFFS)
+
+  # The MP data and the ee cliffs are in a many-to-many relationship.
+  # We start by associating each MP area to its closest cliff.
+  # If the MP area has no close cliffs, it is dropped.
+  # The FeatureCollection `mp_joined` is the result of this operation.
+
+  dist_filter = ee.Filter.withinDistance(
+      distance=300,
+      leftField='.geo',
+      rightField='.geo',
+      maxError=50
+  )
+  ee_join = ee.Join.saveBest(
+      matchKey='associated_cliff',
+      measureKey='distance_to_mp',
+      outer=False  # unjoined MP areas are dropped
+  )
+  mp_joined = ee_join.apply(mp_data, cliffs, dist_filter)
+  # adding cliff id for easier access later on
+  mp_joined = mp_joined.map(lambda f: f.set({
+      'associated_cliff': ee.Feature(f.get('associated_cliff')).id()
+  }))
+  return mp_joined, cliffs
+
+
+def aggregate_mp():
+  """For each ee cliff, aggregate associated MP data."""
+
+  mp_joined, cliffs = join()
+  # Now we map over cliffs, aggregating any associated MP data.
+
+  def create_mp_label(cliff):
+    index = index = cliff.id()
+    associated_mp = mp_joined.filterMetadata(
+        'associated_cliff', 'equals', index)
+    n_rock = associated_mp.aggregate_sum('n_rock')
+    n_views = associated_mp.aggregate_sum('n_views')
+    names = associated_mp.aggregate_array('name')
+    return cliff.set({
+        'n_rock': n_rock,
+        'n_views': n_views,
+        'name': names.join(' - '),
+    })
+
+  cliffs = cliffs.map(create_mp_label)
+  return cliffs
+
+
+def main():
+  """Run the main job."""
+  cliffs = aggregate_mp()
+
+  task = ee.batch.Export.table.toDrive(
       collection=cliffs,
-      description='joined cliffs',
       fileFormat='CSV',
       folder='earth-engine',
-      fileNamePrefix='cliff_joined')
+      description='cliff_joined'  # filename
+  )
 
-  task1.start()
-  task2.start()
-  # Call ee.batch.Task.list() to see current status of exports.
+  task.start()
 
 
 if __name__ == '__main__':
-  mp_data = ee.FeatureCollection('users/zebengberg/big_walls/mp_data')
-  cliffs_data = ee.FeatureCollection('users/zebengberg/big_walls/cliff_data')
-  join_data(mp_data, cliffs_data)
+  main()

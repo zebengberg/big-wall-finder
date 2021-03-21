@@ -25,8 +25,8 @@ cliffs = cliffs.updateMask(cliffs.gt(definitions.HEIGHT_THRESHOLD))
 def build_rectangles():
   """Build an ee.List of rectangles covering the western US."""
 
-  xmin, xmax, dx = -125, -102, 0.25
-  ymin, ymax, dy = 31, 49, 0.25
+  xmin, xmax, dx = definitions.XMIN, definitions.XMAX, definitions.DX
+  ymin, ymax, dy = definitions.YMIN, definitions.YMAX, definitions.DY
 
   rectangles = ee.List.sequence(xmin, xmax, dx).map(
       lambda x: ee.List.sequence(ymin, ymax, dy).map(
