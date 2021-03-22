@@ -4,7 +4,7 @@ import os
 import ee
 from big_wall_finder import definitions
 from big_wall_finder.mp import parse_mp
-from big_wall_finder.ee import cliff_footprints, cliff_data
+from big_wall_finder.ee import cliff_footprints, cliff_data, cliff_join
 
 ee.Initialize()
 
@@ -24,6 +24,9 @@ elif 'cliff_footprints' not in definitions.get_ee_assets():
 
 elif 'cliff_data' not in definitions.get_ee_assets():
   cliff_data.main()
+
+elif 'cliff_joined' not in definitions.get_ee_assets():
+  cliff_join.main()
 
 elif not os.path.exists(definitions.NAIP_DATA_DIR):
   # TODO: consider https://developers.google.com/drive/api/v3/quickstart/python

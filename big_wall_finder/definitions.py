@@ -34,6 +34,7 @@ N_SHARDS = 100
 EE_ASSET_DIR = ee.data.getAssetRoots()[0]['id'] + '/big_wall_data'
 EE_CLIFF_FOOTPRINTS = EE_ASSET_DIR + '/cliff_footprints'
 EE_CLIFFS = EE_ASSET_DIR + '/cliff_data'
+EE_JOINED = EE_ASSET_DIR + '/cliff_joined'
 MP_DATA = EE_ASSET_DIR + '/mp_data'
 
 
